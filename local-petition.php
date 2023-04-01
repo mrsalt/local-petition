@@ -1,3 +1,4 @@
+<?php
 /**
  * Local Petition
  *
@@ -20,3 +21,12 @@
  * License URI:       https://www.gnu.org/licenses/gpl-3.0.html
  * Update URI:        https://github.com/mrsalt/local-petition
  */
+
+
+register_activation_hook( __FILE__, 'jal_install' );
+register_activation_hook( __FILE__, 'jal_install_data' );
+
+// https://codex.wordpress.org/Creating_Tables_with_Plugins
+// Since 3.1 the activation function registered with register_activation_hook() is not called when a plugin is updated:
+add_action( 'plugins_loaded', 'myplugin_update_db_check' );
+?>
