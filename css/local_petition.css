@@ -23,3 +23,10 @@ form.petition input, select {
     height: auto;
     width: 35em;
 }
+
+.submit-error {
+    font-weight: bold;
+    border: 1px solid red;
+    color: red;
+    padding: 30px;
+}

@@ -75,26 +75,39 @@ function sanitize_address($address)
     );
 }
 
-function store_address($address)
+function get_address_id($address)
 {
+    global $wpdb;
+    $address_table_name = $wpdb->prefix . 'lp_address';
+    $query = prepare_query("SELECT id FROM {$address_table_name} WHERE line_1 = %s AND line_2 = %s AND zip = %s", $address['line_1'], $address['line_2'], $address['zip']);
+    $results = $wpdb->get_results($query);
+    if (count($results) == 0) {
+        return null;
+    }
+    return $results[0]->id;
+}
+
+function store_address($address, $normalized_id = null)
+{
+    $id = get_address_id($address);
+    if ($id != null) return $id;
+
+    $values = array(
+        'line_1' => $address['line_1'],
+        'line_2' => $address['line_2'],
+        'city'   => $address['city'],
+        'state'  => $address['state'],
+        'zip'    => $address['zip'],
+        'zip_ext' => $address['zip_ext'],
+        'normalized_id' => $normalized_id
+    );
+
     global $wpdb;
     $address_table_name = $wpdb->prefix . 'lp_address';
     $wpdb->insert(
         $address_table_name,
-        array(
-            'line_1' => $address['line_1'],
-            'line_2' => $address['line_2'],
-            'city'   => $address['city'],
-            'state'  => $address['state'],
-            'zip'    => $address['zip'],
-            'zip_ext' => $address['zip_ext']
-        )
+        $values
     );
 
-    $query = $wpdb->prepare("SELECT id FROM {$address_table_name} WHERE line_1 = %s AND line_2 = %s AND zip = %s", $address['line_1'], $address['line_2'], $address['zip']);
-    $results = $wpdb->get_results($query);
-    if (count($results) == 0) {
-        throw new Exception("Error: $query returned no results");
-    }
-    return $results[0]['id'];
+    return get_address_id($address);
 }

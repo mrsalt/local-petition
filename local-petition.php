@@ -24,16 +24,19 @@
  */
 define('LOCAL_PETITION_VERSION', '1.0.0');
 
- // Make sure we don't expose any info if called directly
-if ( !function_exists( 'add_action' ) ) {
+// Make sure we don't expose any info if called directly
+if (!function_exists('add_action')) {
 	echo 'Hi there!  I\'m just a plugin, not much I can do when called directly.';
 	exit;
 }
 
+require_once('_inc/lp-init.php');
+add_action('init', 'lp_handle_init');
+
 // This next line is helpful for debugging.  If you want to load the site on a different port,
 // redirect_canonical prevents this from working because it redirects back to the canonical url.
 // TODO: make this conditional based on detecting that we're using a non-standard port.
-remove_filter('template_redirect','redirect_canonical');
+remove_filter('template_redirect', 'redirect_canonical');
 
 require_once('_inc/lp-database.php');
 register_activation_hook(__FILE__, 'lp_db_install');
@@ -45,6 +48,7 @@ add_action('plugins_loaded', 'lp_db_install');
 
 // Register shortcodes
 require_once('_inc/lp-render-petition.php');
-add_shortcode('local_petition','lp_render_petition');
+add_shortcode('local_petition', 'lp_render_petition');
 
 wp_enqueue_style('local_petition_style', plugins_url('css/local_petition.css', __FILE__), false, LOCAL_PETITION_VERSION);
+wp_enqueue_script('local_petition_js', plugins_url('js/local_petition.js', __FILE__), array(), LOCAL_PETITION_VERSION);

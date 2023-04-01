@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.07';
+$lp_db_version = '1.19';
 
 function lp_db_install()
 {
@@ -32,40 +32,43 @@ function lp_db_install()
 	$address_table_name = $wpdb->prefix . 'lp_address';
 	$sql = "CREATE TABLE $address_table_name (
 		id mediumint(9) NOT NULL AUTO_INCREMENT,
-		line_1 tinytext NOT NULL,
-		line_2 tinytext,
-		city tinytext NOT NULL,
-		`state` tinytext NOT NULL,
+		normalized_id mediumint(9),
+		line_1 varchar(40) NOT NULL,
+		line_2 varchar(40),
+		city varchar(20) NOT NULL,
+		`state` char(2) NOT NULL,
 		zip char(5) NOT NULL,
 		zip_ext char(4),
 		PRIMARY KEY  (id),
-		UNIQUE KEY unique_address (line_1(12), line_2(12), city(12))
+		CONSTRAINT unique_address UNIQUE (line_1(12), line_2(12), city(12))
 	) $charset_collate;";
 	dbDelta($sql);
 
 	$table_name = $wpdb->prefix . 'lp_signer';
 	$sql = "CREATE TABLE $table_name (
 		id mediumint(9) NOT NULL AUTO_INCREMENT,
+		created timestamp DEFAULT CURRENT_TIMESTAMP,
 		campaign_id mediumint(9) NOT NULL,
-		name tinytext NOT NULL,
+		name varchar(50) NOT NULL,
 		address_id mediumint(9) NOT NULL,
 		original_address_id mediumint(9) NOT NULL,
-		title tinytext,
+		title varchar(50),
 		comments text,
-		photo_file tinytext,
+		photo_file varchar(50),
 		is_supporter boolean NOT NULL,
-		consent_granted_to_share boolean NOT NULL,
+		share_granted boolean NOT NULL,
 		is_helper boolean NOT NULL,
-		email tinytext,
-		phone tinytext,
+		email varchar(50),
+		phone varchar(20),
 		PRIMARY KEY  (id)
 	) $charset_collate;";
 	dbDelta($sql);
 
-	if (!isset($installed_ver) || version_compare($installed_ver, '1.01', '<')) {
-		$wpdb->query("ALTER TABLE $table_name ADD FOREIGN KEY (campaign_id) REFERENCES $campaign_table_name(id)");
-		$wpdb->query("ALTER TABLE $table_name ADD FOREIGN KEY (address_id)  REFERENCES $address_table_name(id)");
-		$wpdb->query("ALTER TABLE $table_name ADD FOREIGN KEY (original_address_id) REFERENCES $address_table_name(id)");
+	if (!check_for_fk_constraint('campaign_fk')) {
+		$wpdb->query("ALTER TABLE $address_table_name ADD CONSTRAINT normalized_fk FOREIGN KEY (normalized_id) REFERENCES $address_table_name(id)");
+		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT campaign_fk FOREIGN KEY (campaign_id) REFERENCES $campaign_table_name(id)");
+		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT address_fk  FOREIGN KEY (address_id)  REFERENCES $address_table_name(id)");
+		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT orig_address_fk FOREIGN KEY (original_address_id) REFERENCES $address_table_name(id)");
 	}
 
 	if (!isset($installed_ver))
@@ -74,7 +77,41 @@ function lp_db_install()
 		update_option('lp_db_version', $lp_db_version);
 }
 
+function check_for_fk_constraint($constraint) {
+    $sql = "SELECT COUNT(*)
+    FROM information_schema.TABLE_CONSTRAINTS
+    WHERE
+        CONSTRAINT_SCHEMA = DATABASE() AND
+        CONSTRAINT_NAME   = '$constraint' AND
+        CONSTRAINT_TYPE   = 'FOREIGN KEY'";
+	global $wpdb;
+	return $wpdb->query($sql);
+}
+
 function lp_db_install_data()
 {
 	global $wpdb;
+}
+
+function prepare_query($query, ...$args ) {
+	// wordpress' prepare function does not handle null values the same way the insert function does.
+	// insert will insert null values, but prepare() will convert these null values to empty strings,
+	// causing the sequence of inserting followed by a query to be non-idempotent.  :(
+	// The purpose of this function is to prepare a query that preserves nulls.
+
+	$replaced = [];
+	foreach ($args as $arg) {
+		if ($arg === null) {
+			$replaced[] = 'NULL';
+		}
+		else if (gettype($arg) == 'string') {
+			$replaced[] = '\''.addslashes($arg).'\'';
+		}
+		else {
+			$replaced[] = $arg;
+		}
+	}
+	$query = vsprintf($query, $replaced);
+	$query = str_replace('= NULL', 'IS NULL', $query);
+	return $query;
 }
