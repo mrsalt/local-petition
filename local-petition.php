@@ -22,6 +22,7 @@
  * License URI:       https://www.gnu.org/licenses/gpl-3.0.html
  * Update URI:        https://github.com/mrsalt/local-petition
  */
+define('LOCAL_PETITION_VERSION', '1.0.0');
 
  // Make sure we don't expose any info if called directly
 if ( !function_exists( 'add_action' ) ) {
@@ -45,3 +46,5 @@ add_action('plugins_loaded', 'lp_db_update_check');
 // Register shortcodes
 require_once('_inc/lp-render-petition.php');
 add_shortcode('local_petition','lp_render_petition');
+
+wp_enqueue_style('local_petition_style', plugins_url('css/local_petition.css', __FILE__), false, LOCAL_PETITION_VERSION);

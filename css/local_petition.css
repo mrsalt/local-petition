@@ -1,0 +1,8 @@
+form.petition {
+    font-size: medium
+}
+
+form.petition > p > label > input, select {
+    font-size: large;
+    padding: 5px;
+}
