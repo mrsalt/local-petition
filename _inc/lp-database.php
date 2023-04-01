@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '0.81';
+$lp_db_version = '0.84';
 
 function lp_db_install()
 {
@@ -43,16 +43,14 @@ function lp_db_install()
 	$sql = "CREATE TABLE $table_name (
 		id mediumint(9) NOT NULL AUTO_INCREMENT,
 		campaign_id mediumint(9),
-		wordpress_user_id mediumint(9),
 		name tinytext NOT NULL,
 		address_id mediumint(9) NOT NULL,
-		signer_id mediumint(9),
-		login_type tinytext NOT NULL,
-		login_token tinytext NOT NULL,
 		title tinytext,
 		comments text,
-		share_comments boolean,
-		share_picture boolean,
+		photo_file tinytext,
+		is_supporter boolean NOT NULL,
+		consent_granted_to_share boolean NOT NULL,
+		is_helper boolean NOT NULL,
 		email tinytext,
 		phone tinytext,
 		FOREIGN KEY (campaign_id) REFERENCES $campaign_table_name(id),
