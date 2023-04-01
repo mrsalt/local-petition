@@ -23,7 +23,18 @@
  * Update URI:        https://github.com/mrsalt/local-petition
  */
 
-require_once('lp-database.php');
+ // Make sure we don't expose any info if called directly
+if ( !function_exists( 'add_action' ) ) {
+	echo 'Hi there!  I\'m just a plugin, not much I can do when called directly.';
+	exit;
+}
+
+// This next line is helpful for debugging.  If you want to load the site on a different port,
+// redirect_canonical prevents this from working because it redirects back to the canonical url.
+// TODO: make this conditional based on detecting that we're using a non-standard port.
+remove_filter('template_redirect','redirect_canonical');
+
+require_once('_inc/lp-database.php');
 register_activation_hook(__FILE__, 'lp_db_install');
 register_activation_hook(__FILE__, 'lp_db_install_data');
 
