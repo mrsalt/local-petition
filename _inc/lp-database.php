@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '0.9';
+$lp_db_version = '0.81';
 
 function lp_db_install()
 {
@@ -17,6 +17,16 @@ function lp_db_install()
 	// See requirements for using wordpress function dbDelta() here:
 	// https://codex.wordpress.org/Creating_Tables_with_Plugins
 
+	$campaign_table_name = $wpdb->prefix . 'lp_campaign';
+	$sql = "CREATE TABLE $campaign_table_name (
+		id mediumint(9) NOT NULL AUTO_INCREMENT,
+		name tinytext NOT NULL,
+		slug tinytext NOT NULL,
+		status ENUM ('Active','Successful','Abandoned') NOT NULL,
+		PRIMARY KEY  (id)
+	) $charset_collate;";
+	dbDelta($sql);
+
 	$address_table_name = $wpdb->prefix . 'lp_address';
 	$sql = "CREATE TABLE $address_table_name (
 		id mediumint(9) NOT NULL AUTO_INCREMENT,
@@ -32,6 +42,7 @@ function lp_db_install()
 	$table_name = $wpdb->prefix . 'lp_signer';
 	$sql = "CREATE TABLE $table_name (
 		id mediumint(9) NOT NULL AUTO_INCREMENT,
+		campaign_id mediumint(9),
 		wordpress_user_id mediumint(9),
 		name tinytext NOT NULL,
 		address_id mediumint(9) NOT NULL,
@@ -44,6 +55,7 @@ function lp_db_install()
 		share_picture boolean,
 		email tinytext,
 		phone tinytext,
+		FOREIGN KEY (campaign_id) REFERENCES $campaign_table_name(id),
 		FOREIGN KEY (address_id) REFERENCES $address_table_name(id),
 		PRIMARY KEY  (id)
 	) $charset_collate;";
