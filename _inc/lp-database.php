@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.20';
+$lp_db_version = '1.24';
 
 function lp_db_install()
 {
@@ -39,10 +39,13 @@ function lp_db_install()
 		`state` char(2) NOT NULL,
 		zip char(5) NOT NULL,
 		zip_ext char(4),
-		PRIMARY KEY  (id),
-		CONSTRAINT unique_address UNIQUE (line_1(12), line_2(12), city(12))
+		PRIMARY KEY  (id)
 	) $charset_collate;";
 	dbDelta($sql);
+
+	if (!check_for_constraint('unique_address', 'UNIQUE')) {
+		$wpdb->query("ALTER TABLE $address_table_name ADD CONSTRAINT unique_address UNIQUE (line_1(12), line_2(12), city(12))");
+	}
 
 	$table_name = $wpdb->prefix . 'lp_signer';
 	$sql = "CREATE TABLE $table_name (
@@ -65,12 +68,24 @@ function lp_db_install()
 	) $charset_collate;";
 	dbDelta($sql);
 
-	if (!check_for_fk_constraint('campaign_fk')) {
+	if (!check_for_constraint('campaign_fk', 'FOREIGN KEY')) {
 		$wpdb->query("ALTER TABLE $address_table_name ADD CONSTRAINT normalized_fk FOREIGN KEY (normalized_id) REFERENCES $address_table_name(id)");
 		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT campaign_fk FOREIGN KEY (campaign_id) REFERENCES $campaign_table_name(id)");
 		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT address_fk  FOREIGN KEY (address_id)  REFERENCES $address_table_name(id)");
 		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT orig_address_fk FOREIGN KEY (original_address_id) REFERENCES $address_table_name(id)");
 	}
+
+	$table_name = $wpdb->prefix . 'lp_updates';
+	$sql = "CREATE TABLE $table_name (
+		update_id mediumint(9) NOT NULL AUTO_INCREMENT,
+		created timestamp DEFAULT CURRENT_TIMESTAMP,
+		table_name varchar(50) NOT NULL,
+		id mediumint(9) NOT NULL,
+		field varchar(32) NOT NULL,
+		previous text,
+		PRIMARY KEY  (update_id)
+	) $charset_collate;";
+	dbDelta($sql);
 
 	if (!isset($installed_ver))
 		add_option('lp_db_version', $lp_db_version);
@@ -78,13 +93,13 @@ function lp_db_install()
 		update_option('lp_db_version', $lp_db_version);
 }
 
-function check_for_fk_constraint($constraint) {
+function check_for_constraint($constraint, $type) {
     $sql = "SELECT COUNT(*)
     FROM information_schema.TABLE_CONSTRAINTS
     WHERE
         CONSTRAINT_SCHEMA = DATABASE() AND
         CONSTRAINT_NAME   = '$constraint' AND
-        CONSTRAINT_TYPE   = 'FOREIGN KEY'";
+        CONSTRAINT_TYPE   = '$type'";
 	global $wpdb;
 	return $wpdb->query($sql);
 }

@@ -50,7 +50,7 @@ function set_campaign_session_var($campaign_slug, &$output)
     }
     $campaign = $results[0];
 
-    $_SESSION['lp_campaign_id'] = $campaign->id;
+    $_SESSION['lp_campaign_id'] = intval($campaign->id);
     $_SESSION['campaign'] = $campaign_slug;
     return true;
 }
@@ -108,7 +108,7 @@ function lp_attempt_submit(&$continue_form_render)
     $table_name = $wpdb->prefix . 'lp_signer';
 
     $values = array(
-        'campaign_id'         => $_SESSION['lp_campaign_id'],
+        'campaign_id'         => intval($_SESSION['lp_campaign_id']),
         'name'                => $_POST['signer_name'],
         'address_id'          => $sanitized_address_id,
         'original_address_id' => $original_address_id,
@@ -121,16 +121,35 @@ function lp_attempt_submit(&$continue_form_render)
         'phone'               => $phone,
     );
 
-    $signer_id = get_signer_id($_POST['signer_name'], $sanitized_address_id);
+    $signer = get_signer($_SESSION['lp_campaign_id'], $_POST['signer_name'], $sanitized_address_id);
 
-    if (!$signer_id)
+    if (!$signer) {
         $wpdb->insert($table_name, $values);
-    else
-        $wpdb->update($table_name, $values, array('id' => $signer_id));
+    } else {
+        if ($signer->email && $signer->email !== $email) {
+            $content .= '<div class="submit-error">In order to submit changes, the same email address must be used which was used originally.</div>';
+            $continue_form_render = true;
+            return $content;
+        }
+        if ($signer->phone && $signer->phone !== $phone) {
+            $content .= '<div class="submit-error">In order to submit changes, the same phone number must be used which was used originally.</div>';
+            $continue_form_render = true;
+            return $content;
+        }
+        // Since we're not (currently) requiring authentication to make changes, record the changes are are being submitted
+        // to be able to detect if anything unusual is happening.
+        foreach ($values as $key => $value) {
+            if ($value !== $signer->$key) {
+                $content .= '<div>Recording change to field ' . $key . ', old value: ' . $signer->$key . ' (' . gettype($signer->$key) . '), new value: ' . $value . ' (' . gettype($value) . ')</div>';
+                record_update($table_name, $key, $signer->id, $signer->$key);
+            }
+        }
+        $wpdb->update($table_name, $values, array('id' => $signer->id));
+    }
 
-    if (!$signer_id) {
-        $signer_id = get_signer_id($_POST['signer_name'], $sanitized_address_id);
-        if (!$signer_id) {
+    if (!$signer) {
+        $signer = get_signer($_SESSION['lp_campaign_id'], $_POST['signer_name'], $sanitized_address_id);
+        if (!$signer) {
             throw new Exception('Failed to upsert ' . $table_name);
         }
     }
@@ -148,7 +167,7 @@ function lp_attempt_submit(&$continue_form_render)
         $tmp_path = $file['tmp_name'];
 
         $upload_dir = wp_upload_dir();
-        $upload_dir = $upload_dir['basedir'] . '/local-petition/' . $_SESSION['campaign'] . '/' . $signer_id . '/';
+        $upload_dir = $upload_dir['basedir'] . '/local-petition/' . $_SESSION['campaign'] . '/' . $signer->id . '/';
         if (!is_dir($upload_dir)) {
             if (!mkdir($upload_dir, 0666, true)) throw new Exception('Failed to mkdir ' . $upload_dir);
         }
@@ -164,7 +183,7 @@ function lp_attempt_submit(&$continue_form_render)
                 'photo_file' => $file['name'],
                 'photo_file_type' => $file['type']
             ),
-            array('id' => $signer_id)
+            array('id' => $signer->id)
         );
 
         if (!$result) {
@@ -175,16 +194,21 @@ function lp_attempt_submit(&$continue_form_render)
     return $content;
 }
 
-function get_signer_id($name, $address_id)
+function get_signer($campaign_id, $name, $address_id)
 {
     global $wpdb;
     $table_name = $wpdb->prefix . 'lp_signer';
-    $query = prepare_query("SELECT id FROM {$table_name} WHERE `name` = %s AND address_id = %s", $name, $address_id);
+    $query = prepare_query("SELECT * FROM {$table_name} WHERE `campaign_id` = %s AND `name` = %s AND address_id = %s", $campaign_id, $name, $address_id);
     $results = $wpdb->get_results($query);
     if (count($results) == 0) {
         return null;
     }
-    return $results[0]->id;
+    // get_results uses mysqli_fetch_object; mysql returns all values as strings.  Let's convert integer values here to integers:
+    $signer = $results[0];
+    $int_properties = array('id', 'campaign_id', 'address_id', 'original_address_id', 'is_supporter', 'share_granted', 'is_helper');
+    foreach ($int_properties as $field)
+        $signer->$field = intval($signer->$field);
+    return $signer;
 }
 
 function lp_render_petition_form($atts, $content)
@@ -205,21 +229,21 @@ function lp_render_petition_form($atts, $content)
     $content .= '<p>' . get_input('City', 'city', true, 20) . '</p>';
     $content .= '<p>' . get_state_input('State', 'state', true) . '</p>';
     $content .= '<p>' . get_input('Zip', 'zip', true, 5) . '</p>';
+    $content .= '<p>' . get_input('Email', 'email', false, 50) . '</p>';
+    $content .= '<p>' . get_input('Phone', 'phone', false, 20) . '</p>';
+
     $content .= '<p>Optional Information:</p>';
     $content .= '<p>' . get_textarea('Comments', 'comments') . '</p>';
     $content .= '<p>' . get_input('Title', 'title', false, 50) . '</p>';
-    $content .= '<p>' . get_input('Email', 'email', false, 50) . '</p>';
-    $content .= '<p>' . get_input('Phone', 'phone', false, 20) . '</p>';
     $content .= '<p><label>Photograph:<br><input type="file" id="photo" name="photo" value=""></label></p>';
     $content .= '<p><label><input type="checkbox" id="is_helper" name="is_helper"> I would like to get involved to help this effort.</label></p>';
-
     $content .= '<div>Privacy:<ul style="margin-left: 15px">';
-    $content .= '<li>Your name, picture, and comments will be shown to site visitors only with your consent, which you may give by checking the box below.</li>';
-    $content .= '<li>Anonymous markers will show petition signers on a city map.</li>';
+    $content .= '<li>Your name, photo, and comments will be shown to site visitors only with your consent, which you may give by checking the box below.</li>';
+    $content .= '<li>The number of signers in an area will be shown on a city map.</li>';
     $content .= '<li>Information submitted here may also be shared with Boise City Officials.</li>';
     $content .= '</ul></div>';
 
-    $content .= '<p><label><input type="checkbox" id="is_share" name="is_share"> Yes, please share my name and any other optional information I have provided with site visitors.  <i>Sharing your name, comments, and photo will help promote this effort.</i></label></p>';
+    $content .= '<p><label><input type="checkbox" id="is_share" name="is_share"> Yes, please share my name and optional information I have provided with site visitors.  <i>Sharing your name, comments, and photo will help promote this effort.</i></label></p>';
     $content .= '<p><input type="submit"></p>';
     $content .= '</form>';
     return $content;
@@ -303,4 +327,11 @@ function get_state_input($label, $id)
     }
     $content .= '</select></label>';
     return $content;
+}
+
+function record_update($table_name, $field, $id, $previous_value)
+{
+    global $wpdb;
+    $values = array('table_name' => $table_name, 'id' => $id, 'field' => $field, 'previous' => var_export($previous_value, true));
+    $wpdb->insert($wpdb->prefix . 'lp_updates', $values);
 }

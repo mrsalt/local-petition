@@ -86,7 +86,7 @@ function get_address_id($address)
     if (count($results) == 0) {
         return null;
     }
-    return $results[0]->id;
+    return intval($results[0]->id);
 }
 
 function store_address($address, $normalized_id = null)
@@ -110,6 +110,5 @@ function store_address($address, $normalized_id = null)
         $address_table_name,
         $values
     );
-
-    return get_address_id($address);
+    return intval($wpdb->insert_id);
 }
