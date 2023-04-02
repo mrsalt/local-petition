@@ -61,8 +61,11 @@ function lp_attempt_submit(&$continue_form_render)
 
     $continue_form_render = false;
 
+    // This is annoying.  https://wordpress.stackexchange.com/questions/34866/stop-wordpress-automatically-escaping-post-data
+    $_POST = wp_unslash($_POST);
+
     $content = '';
-    $content .= '<pre>$_POST = ' . var_export($_POST, true) . "\n" . '$_FILES = ' . var_export($_FILES, true) . '</pre>';
+    //$content .= '<pre>$_POST = ' . var_export($_POST, true) . "\n" . '$_FILES = ' . var_export($_FILES, true) . '</pre>';
 
     $email = array_key_exists('email', $_POST) ? $_POST['email'] : null;
     $phone = array_key_exists('phone', $_POST) ? $_POST['phone'] : null;
@@ -140,7 +143,7 @@ function lp_attempt_submit(&$continue_form_render)
         // to be able to detect if anything unusual is happening.
         foreach ($values as $key => $value) {
             if ($value !== $signer->$key) {
-                $content .= '<div>Recording change to field ' . $key . ', old value: ' . $signer->$key . ' (' . gettype($signer->$key) . '), new value: ' . $value . ' (' . gettype($value) . ')</div>';
+                //$content .= '<div>Recording change to field ' . $key . ', old value: ' . $signer->$key . ' (' . gettype($signer->$key) . '), new value: ' . $value . ' (' . gettype($value) . ')</div>';
                 record_update($table_name, $key, $signer->id, $signer->$key);
             }
         }
@@ -185,10 +188,33 @@ function lp_attempt_submit(&$continue_form_render)
             ),
             array('id' => $signer->id)
         );
+        $signer->photo_file = $file['name'];
 
         if (!$result) {
             throw new Exception('Failed to update ' . $table_name . ' with photo file');
         }
+    }
+
+    if (!$continue_form_render) {
+        $content .= '<div id="post-submit">';
+        if ($values['is_supporter']) {
+            $content .= '<p style="font-size: xx-large">' . $signer->name . ', thank you for signing our petition!</p>';
+        } else {
+            $content .= '<p>' . $signer->name . ', thank you for your feedback.  We\'re sorry to hear that you don\'t support this initiative.';
+            if (strlen($values['comments']) > 5) {
+                $content .= '  Do your comments describe why?  (if not, hit back and leave more comments to help us understand why)';
+            } else {
+                $content .= '  Would you please hit back and add comments to help us understand why?';
+            }
+            $content .= '</p>';
+        }
+        $content .= '<p><label>Title: <span>' . $values['title'] . '</span></label></p>';
+        $content .= '<p><label>Photo Provided: <span>' . ($signer->photo_file ? 'Yes' : 'No') . '</span></label></p>';
+        $content .= '<p><label>Consent Granted to Share: <span>' . ($values['share_granted'] ? 'Yes' : 'No') . '</span></label></p>';
+        $content .= '<p><label>I Want to Help: <span>' . ($values['is_helper'] ? 'Yes' : 'No') . '</span></label></p>';
+        $content .= '<p><label>Comments:<div class="comment-preview">' . $values['comments'] . '</div></label></p>';
+        $content .= '<p><i>If you wish to change anything, press back and make changes.  You may also make changes in the future if you return to this page.</i></p>';
+        $content .= '</div>';
     }
 
     return $content;
@@ -216,10 +242,7 @@ function lp_render_petition_form($atts, $content)
     $content .= '<form autocomplete="on" class="petition" action="' . get_permalink() . '" method="post" enctype="multipart/form-data">';
 
     $content .= '<p>Pick One:<br>';
-    if (!isset($_POST['is_supporter']))
-        $is_supporter = 'true';
-    else
-        $is_supporter = $_POST['is_supporter'];
+    $is_supporter = $_POST['is_supporter'] ?? 'true';
     $content .= '<label><input type="radio" name="is_supporter" value="true"' . ($is_supporter == 'true' ? ' checked' : '') . '> Yes, I\'m a supporter</label><br>';
     $content .= '<label><input type="radio" name="is_supporter" value="false"' . ($is_supporter == 'false' ? ' checked' : '') . '> No, I\'m not a supporter</input></label></p>';
 
@@ -236,14 +259,16 @@ function lp_render_petition_form($atts, $content)
     $content .= '<p>' . get_textarea('Comments', 'comments') . '</p>';
     $content .= '<p>' . get_input('Title', 'title', false, 50) . '</p>';
     $content .= '<p><label>Photograph:<br><input type="file" id="photo" name="photo" value=""></label></p>';
-    $content .= '<p><label><input type="checkbox" id="is_helper" name="is_helper"> I would like to get involved to help this effort.</label></p>';
+    $is_helper = array_key_exists('is_helper', $_POST);
+    $content .= '<p><label><input type="checkbox" id="is_helper" name="is_helper"' . ($is_helper ? ' checked' : '') . '> I would like to get involved to help this effort.</label></p>';
     $content .= '<div>Privacy:<ul style="margin-left: 15px">';
     $content .= '<li>Your name, photo, and comments will be shown to site visitors only with your consent, which you may give by checking the box below.</li>';
     $content .= '<li>The number of signers in an area will be shown on a city map.</li>';
     $content .= '<li>Information submitted here may also be shared with Boise City Officials.</li>';
     $content .= '</ul></div>';
 
-    $content .= '<p><label><input type="checkbox" id="is_share" name="is_share"> Yes, please share my name and optional information I have provided with site visitors.  <i>Sharing your name, comments, and photo will help promote this effort.</i></label></p>';
+    $is_share = array_key_exists('is_share', $_POST);
+    $content .= '<p><label><input type="checkbox" id="is_share" name="is_share"' . ($is_share ? ' checked' : '') . '> Yes, please share my name and optional information I have provided with site visitors.  <i>Sharing your name, comments, and photo will help promote this effort.</i></label></p>';
     $content .= '<p><input type="submit"></p>';
     $content .= '</form>';
     return $content;

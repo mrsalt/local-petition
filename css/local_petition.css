@@ -30,3 +30,13 @@ form.petition input, select {
     color: red;
     padding: 30px;
 }
+
+.comment-preview {
+    border: 1px solid gray;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+#post-submit span {
+    font-weight: bold;
+}
