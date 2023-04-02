@@ -2,7 +2,7 @@ form.petition {
     font-size: medium
 }
 
-form.petition input, select {
+form.petition input, select, button {
     font-size: large;
     padding: 5px;
 }

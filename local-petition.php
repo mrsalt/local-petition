@@ -24,6 +24,11 @@
  */
 define('LOCAL_PETITION_VERSION', '1.0.0');
 
+// True if we are running in a production environment
+define('LP_PRODUCTION', get_cfg_var('environment') === 'production');
+define('reCAPTCHA_site_key', get_cfg_var('reCAPTCHA_site_key'));
+define('reCAPTCHA_secret', get_cfg_var('reCAPTCHA_secret'));
+
 // Make sure we don't expose any info if called directly
 if (!function_exists('add_action')) {
 	echo 'Hi there!  I\'m just a plugin, not much I can do when called directly.';
@@ -52,3 +57,4 @@ add_shortcode('local_petition', 'lp_render_petition');
 
 wp_enqueue_style('local_petition_style', plugins_url('css/local_petition.css', __FILE__), false, LOCAL_PETITION_VERSION);
 wp_enqueue_script('local_petition_js', plugins_url('js/local_petition.js', __FILE__), array(), LOCAL_PETITION_VERSION);
+wp_register_script('recaptcha', 'https://www.google.com/recaptcha/api.js');

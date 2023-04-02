@@ -60,11 +60,28 @@ function lp_attempt_submit(&$continue_form_render)
     global $wpdb;
 
     $continue_form_render = false;
+    $content = '';
 
     // This is annoying.  https://wordpress.stackexchange.com/questions/34866/stop-wordpress-automatically-escaping-post-data
     $_POST = wp_unslash($_POST);
 
-    $content = '';
+    if (LP_PRODUCTION) {
+        if (!array_key_exists('g-recaptcha-response', $_POST)) {
+            throw new Exception('g-recaptcha-response not found');
+        }
+        $result = verify_recaptcha($_POST['g-recaptcha-response']);
+        if (!$result->success) {
+            if (in_array('timeout-or-duplicate', $result->{'error-codes'})) {
+                $content .= '<div class="submit-error">Duplicate submission error.  Please scroll to the bottom and submit again.</div>';
+                $continue_form_render = true;
+                return $content;
+            } else {
+                $content .= '<div class="submit-error">Human verification failed.</div>';
+                return $content;
+            }
+        }
+    }
+
     //$content .= '<pre>$_POST = ' . var_export($_POST, true) . "\n" . '$_FILES = ' . var_export($_FILES, true) . '</pre>';
 
     $email = array_key_exists('email', $_POST) ? $_POST['email'] : null;
@@ -239,7 +256,11 @@ function get_signer($campaign_id, $name, $address_id)
 
 function lp_render_petition_form($atts, $content)
 {
-    $content .= '<form autocomplete="on" class="petition" action="' . get_permalink() . '" method="post" enctype="multipart/form-data">';
+    if (LP_PRODUCTION)
+        wp_enqueue_script('recaptcha');
+    else
+        $content .= '<p><i>This site is in debug/development mode</i></p>';
+    $content .= '<form autocomplete="on" id="local-petition-form" class="petition" action="' . get_permalink() . '" method="post" enctype="multipart/form-data">';
 
     $content .= '<p>Pick One:<br>';
     $is_supporter = $_POST['is_supporter'] ?? 'true';
@@ -269,7 +290,12 @@ function lp_render_petition_form($atts, $content)
 
     $is_share = array_key_exists('is_share', $_POST);
     $content .= '<p><label><input type="checkbox" id="is_share" name="is_share"' . ($is_share ? ' checked' : '') . '> Yes, please share my name and optional information I have provided with site visitors.  <i>Sharing your name, comments, and photo will help promote this effort.</i></label></p>';
-    $content .= '<p><input type="submit"></p>';
+    if (LP_PRODUCTION) {
+        $content .= '<script>function onSubmit(token) { document.getElementById("local-petition-form").submit(); }</script>';
+        $content .= '<p><button class="g-recaptcha" data-sitekey="' . reCAPTCHA_site_key . '" data-callback=\'onSubmit\' data-action=\'submit\'>Submit</button></p>';
+    } else {
+        $content .= '<p><input type="submit"></p>';
+    }
     $content .= '</form>';
     return $content;
 }
