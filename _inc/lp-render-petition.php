@@ -231,6 +231,7 @@ function lp_attempt_submit(&$continue_form_render)
         $content .= '<p><label>I Want to Help: <span>' . ($values['is_helper'] ? 'Yes' : 'No') . '</span></label></p>';
         $content .= '<p><label>Comments:<div class="comment-preview">' . $values['comments'] . '</div></label></p>';
         $content .= '<p><i>If you wish to change anything, press back and make changes.  You may also make changes in the future if you return to this page.</i></p>';
+        $content .= '<p>Click this button to allow another individual to sign: <button type="button" onclick="location.href=\'' . get_permalink() . '\'">Sign Again</button></p>';
         $content .= '</div>';
     }
 
