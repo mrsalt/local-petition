@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.19';
+$lp_db_version = '1.20';
 
 function lp_db_install()
 {
@@ -55,6 +55,7 @@ function lp_db_install()
 		title varchar(50),
 		comments text,
 		photo_file varchar(50),
+		photo_file_type varchar(15),
 		is_supporter boolean NOT NULL,
 		share_granted boolean NOT NULL,
 		is_helper boolean NOT NULL,

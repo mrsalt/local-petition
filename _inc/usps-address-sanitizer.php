@@ -25,7 +25,6 @@ function simple_xml_parse($xml, $element, $required = true)
 
 function sanitize_address($address)
 {
-
     $user_id = get_cfg_var('usps_api_user_id');
     if (!$user_id)
         throw new Exception('No usps_api_user_id set in php.ini');
@@ -55,6 +54,9 @@ function sanitize_address($address)
         CURLOPT_RETURNTRANSFER => true
     ]);
     $result = curl_exec($ch);
+    if ($result === false) {
+        throw new Exception('curl_exec() returned false: curl_error=' . curl_error($ch) . ', curl_get_info=' . var_export(curl_getinfo($ch), true));
+    }
     curl_close($ch);
 
     if (strpos($result, '<Error>')) {
@@ -98,7 +100,7 @@ function store_address($address, $normalized_id = null)
         'city'   => $address['city'],
         'state'  => $address['state'],
         'zip'    => $address['zip'],
-        'zip_ext' => $address['zip_ext'],
+        'zip_ext' => $address['zip_ext'] ?? null,
         'normalized_id' => $normalized_id
     );
 

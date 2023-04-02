@@ -23,8 +23,36 @@ function lp_render_petition($atts = [], $content = null)
             return $output;
     }
 
+    if (!set_campaign_session_var($atts['campaign'], $output)) {
+        return $output;
+    }
+
     $output .= lp_render_petition_form($atts, $content);
     return $output;
+}
+
+function set_campaign_session_var($campaign_slug, &$output)
+{
+    if (isset($_SESSION['lp_campaign_id']) && isset($_SESSION['campaign']) && $_SESSION['campaign'] === $campaign_slug) {
+        return true;
+    }
+
+    global $wpdb;
+    $campaign_table_name = $wpdb->prefix . 'lp_campaign';
+
+    $results = $wpdb->get_results(
+        $wpdb->prepare("SELECT * FROM {$campaign_table_name} WHERE slug = %s", $campaign_slug)
+    );
+
+    if (count($results) == 0) {
+        $output .= "Error: no campaign found with slug = \"{$campaign_slug}\"";
+        return false;
+    }
+    $campaign = $results[0];
+
+    $_SESSION['lp_campaign_id'] = $campaign->id;
+    $_SESSION['campaign'] = $campaign_slug;
+    return true;
 }
 
 function lp_attempt_submit(&$continue_form_render)
@@ -78,51 +106,89 @@ function lp_attempt_submit(&$continue_form_render)
     //$content .= '<div>Original address id:<pre>' . var_export($original_address_id, true) . '</pre></div>';
 
     $table_name = $wpdb->prefix . 'lp_signer';
-    $photo_file = null;
-    if ($_FILES['photo']['full_path']) {
-        $photo_file = $_FILES['photo']['full_path'];
-    }
 
-    $wpdb->insert(
-        $table_name,
-        array(
-            'campaign_id'         => $_SESSION['lp_campaign_id'],
-            'name'                => $_POST['signer_name'],
-            'address_id'          => $sanitized_address_id,
-            'original_address_id' => $original_address_id,
-            'title'               => $_POST['title'],
-            'comments'            => $_POST['comments'],
-            'photo_file'          => $photo_file,
-            'is_supporter'        => $_POST['is_supporter'] == 'true' ? 1 : 0,
-            'share_granted'       => array_key_exists('is_share', $_POST) ? 1 : 0,
-            'is_helper'           => array_key_exists('is_helper', $_POST) ? 1 : 0,
-            'email'               => $email,
-            'phone'               => $phone,
-        )
+    $values = array(
+        'campaign_id'         => $_SESSION['lp_campaign_id'],
+        'name'                => $_POST['signer_name'],
+        'address_id'          => $sanitized_address_id,
+        'original_address_id' => $original_address_id,
+        'title'               => $_POST['title'],
+        'comments'            => $_POST['comments'],
+        'is_supporter'        => $_POST['is_supporter'] == 'true' ? 1 : 0,
+        'share_granted'       => array_key_exists('is_share', $_POST) ? 1 : 0,
+        'is_helper'           => array_key_exists('is_helper', $_POST) ? 1 : 0,
+        'email'               => $email,
+        'phone'               => $phone,
     );
 
+    $signer_id = get_signer_id($_POST['signer_name'], $sanitized_address_id);
+
+    if (!$signer_id)
+        $wpdb->insert($table_name, $values);
+    else
+        $wpdb->update($table_name, $values, array('id' => $signer_id));
+
+    if (!$signer_id) {
+        $signer_id = get_signer_id($_POST['signer_name'], $sanitized_address_id);
+        if (!$signer_id) {
+            throw new Exception('Failed to upsert ' . $table_name);
+        }
+    }
+
+    if (isset($_FILES['photo']) && $_FILES['photo']['tmp_name']) {
+        $file = $_FILES['photo'];
+
+        $type = $file['type'];
+        if ($type !== 'image/jpeg') {
+            $content .= '<div class="submit-error">Photo should be a .jpg file</div>';
+            $continue_form_render = true;
+            return $content;
+        }
+
+        $tmp_path = $file['tmp_name'];
+
+        $upload_dir = wp_upload_dir();
+        $upload_dir = $upload_dir['basedir'] . '/local-petition/' . $_SESSION['campaign'] . '/' . $signer_id . '/';
+        if (!is_dir($upload_dir)) {
+            if (!mkdir($upload_dir, 0666, true)) throw new Exception('Failed to mkdir ' . $upload_dir);
+        }
+        $final_path = $upload_dir . $file['name'];
+
+        $result = move_uploaded_file($tmp_path, $final_path);
+        if (!$result)
+            throw new Exception('Failed to move uploaded file: ' . var_export($_FILES, true));
+
+        $result = $wpdb->update(
+            $table_name,
+            array(
+                'photo_file' => $file['name'],
+                'photo_file_type' => $file['type']
+            ),
+            array('id' => $signer_id)
+        );
+
+        if (!$result) {
+            throw new Exception('Failed to update ' . $table_name . ' with photo file');
+        }
+    }
+
     return $content;
+}
 
-
-    //$wpdb->prepare( "SELECT * FROM {$campaign_table_name} WHERE slug = %s", $atts['campaign'] );
+function get_signer_id($name, $address_id)
+{
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'lp_signer';
+    $query = prepare_query("SELECT id FROM {$table_name} WHERE `name` = %s AND address_id = %s", $name, $address_id);
+    $results = $wpdb->get_results($query);
+    if (count($results) == 0) {
+        return null;
+    }
+    return $results[0]->id;
 }
 
 function lp_render_petition_form($atts, $content)
 {
-    global $wpdb;
-    $campaign_table_name = $wpdb->prefix . 'lp_campaign';
-
-    $results = $wpdb->get_results(
-        $wpdb->prepare("SELECT * FROM {$campaign_table_name} WHERE slug = %s", $atts['campaign'])
-    );
-
-    if (count($results) == 0) {
-        return "Error: no campaign attribute found for campaign \"{$atts['campaign']}\"";
-    }
-    $campaign = $results[0];
-
-    $_SESSION['lp_campaign_id'] = $campaign->id;
-
     $content .= '<form autocomplete="on" class="petition" action="' . get_permalink() . '" method="post" enctype="multipart/form-data">';
 
     $content .= '<p>Pick One:<br>';
