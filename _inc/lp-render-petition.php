@@ -23,18 +23,19 @@ function lp_render_petition($atts = [], $content = null)
             return $output;
     }
 
-    if (!set_campaign_session_var($atts['campaign'], $output)) {
+    $campaign = set_campaign($atts['campaign'], $output);
+    if (!$campaign) {
         return $output;
     }
 
-    $output .= lp_render_petition_form($atts, $content);
+    $output .= lp_render_petition_form($campaign, $content);
     return $output;
 }
 
-function set_campaign_session_var($campaign_slug, &$output)
+function set_campaign($campaign_slug, &$output)
 {
-    if (isset($_SESSION['lp_campaign_id']) && isset($_SESSION['campaign']) && $_SESSION['campaign'] === $campaign_slug) {
-        return true;
+    if (isset($_SESSION['campaign']) && $_SESSION['campaign']->slug === $campaign_slug) {
+        return $_SESSION['campaign'];
     }
 
     global $wpdb;
@@ -49,10 +50,9 @@ function set_campaign_session_var($campaign_slug, &$output)
         return false;
     }
     $campaign = $results[0];
-
-    $_SESSION['lp_campaign_id'] = intval($campaign->id);
-    $_SESSION['campaign'] = $campaign_slug;
-    return true;
+    $campaign->id = intval($campaign->id);
+    $_SESSION['campaign'] = $campaign;
+    return $campaign;
 }
 
 function lp_attempt_submit(&$continue_form_render)
@@ -101,7 +101,7 @@ function lp_attempt_submit(&$continue_form_render)
         return $content;
     }
 
-    if (!array_key_exists('lp_campaign_id', $_SESSION)) {
+    if (!array_key_exists('campaign', $_SESSION)) {
         $content .= '<div class="submit-error">Page timed out.  Please re-submit.</div>';
         $continue_form_render = true;
         return $content;
@@ -128,7 +128,7 @@ function lp_attempt_submit(&$continue_form_render)
     $table_name = $wpdb->prefix . 'lp_signer';
 
     $values = array(
-        'campaign_id'         => intval($_SESSION['lp_campaign_id']),
+        'campaign_id'         => $_SESSION['campaign']->id,
         'name'                => $_POST['signer_name'],
         'address_id'          => $sanitized_address_id,
         'original_address_id' => $original_address_id,
@@ -141,7 +141,7 @@ function lp_attempt_submit(&$continue_form_render)
         'phone'               => $phone,
     );
 
-    $signer = get_signer($_SESSION['lp_campaign_id'], $_POST['signer_name'], $sanitized_address_id);
+    $signer = get_signer($_SESSION['campaign']->id, $_POST['signer_name'], $sanitized_address_id);
 
     if (!$signer) {
         $wpdb->insert($table_name, $values);
@@ -168,7 +168,7 @@ function lp_attempt_submit(&$continue_form_render)
     }
 
     if (!$signer) {
-        $signer = get_signer($_SESSION['lp_campaign_id'], $_POST['signer_name'], $sanitized_address_id);
+        $signer = get_signer($_SESSION['campaign']->id, $_POST['signer_name'], $sanitized_address_id);
         if (!$signer) {
             throw new Exception('Failed to upsert ' . $table_name);
         }
@@ -187,7 +187,7 @@ function lp_attempt_submit(&$continue_form_render)
         $tmp_path = $file['tmp_name'];
 
         $upload_dir = wp_upload_dir();
-        $upload_dir = $upload_dir['basedir'] . '/local-petition/' . $_SESSION['campaign'] . '/' . $signer->id . '/';
+        $upload_dir = $upload_dir['basedir'] . '/local-petition/' . $_SESSION['campaign']->slug . '/' . $signer->id . '/';
         if (!is_dir($upload_dir)) {
             if (!mkdir($upload_dir, 0666, true)) throw new Exception('Failed to mkdir ' . $upload_dir);
         }
@@ -255,7 +255,7 @@ function get_signer($campaign_id, $name, $address_id)
     return $signer;
 }
 
-function lp_render_petition_form($atts, $content)
+function lp_render_petition_form($campaign, $content)
 {
     if (LP_PRODUCTION)
         wp_enqueue_script('recaptcha');
@@ -283,11 +283,7 @@ function lp_render_petition_form($atts, $content)
     $content .= '<p><label>Photograph:<br><input type="file" id="photo" name="photo" value=""></label></p>';
     $is_helper = array_key_exists('is_helper', $_POST);
     $content .= '<p><label><input type="checkbox" id="is_helper" name="is_helper"' . ($is_helper ? ' checked' : '') . '> I would like to get involved to help this effort.</label></p>';
-    $content .= '<div>Privacy:<ul style="margin-left: 15px">';
-    $content .= '<li>Your name, photo, and comments will be shown to site visitors only with your consent, which you may give by checking the box below.</li>';
-    $content .= '<li>The number of signers in an area will be shown on a city map.</li>';
-    $content .= '<li>Information submitted here may also be shared with Boise City Officials.</li>';
-    $content .= '</ul></div>';
+    $content .= $campaign->privacy_statement;
 
     $is_share = array_key_exists('is_share', $_POST);
     $content .= '<p><label><input type="checkbox" id="is_share" name="is_share"' . ($is_share ? ' checked' : '') . '> Yes, please share my name and optional information I have provided with site visitors.  <i>Sharing your name, comments, and photo will help promote this effort.</i></label></p>';

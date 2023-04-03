@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.24';
+$lp_db_version = '1.26';
 
 function lp_db_install()
 {
@@ -22,8 +22,9 @@ function lp_db_install()
 	$campaign_table_name = $wpdb->prefix . 'lp_campaign';
 	$sql = "CREATE TABLE $campaign_table_name (
 		id mediumint(9) NOT NULL AUTO_INCREMENT,
-		name tinytext NOT NULL,
-		slug tinytext NOT NULL,
+		name varchar(50) NOT NULL,
+		slug varchar(15) NOT NULL,
+		privacy_statement text,
 		status ENUM ('Active','Successful','Abandoned') NOT NULL,
 		PRIMARY KEY  (id)
 	) $charset_collate;";
