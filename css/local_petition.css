@@ -8,15 +8,13 @@ form.petition input, select, button {
 }
 
 #zip {
-    width: 55px;
 }
 
 #state {
-    width: 120px;
+    font-size: large;
 }
 
 #city {
-    width: 100px;
 }
 
 #comments {
