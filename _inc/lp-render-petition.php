@@ -1,6 +1,7 @@
 <?php
 
 require_once('usps-address-sanitizer.php');
+require_once('googlemaps.php');
 
 function lp_render_petition($atts = [], $content = null)
 {
@@ -165,6 +166,12 @@ function lp_attempt_submit(&$continue_form_render)
             }
         }
         $wpdb->update($table_name, $values, array('id' => $signer->id));
+    }
+
+    if (!$signer || $values['address_id'] !== $signer->address_id) {
+        $coordinates = geocode($sanitized_address);
+        if ($coordinates)
+            update_coordinates($sanitized_address_id, $coordinates);
     }
 
     if (!$signer) {

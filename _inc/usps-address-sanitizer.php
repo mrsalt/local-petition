@@ -50,8 +50,7 @@ function sanitize_address($address)
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_URL => 'https://production.shippingapis.com/ShippingAPI.dll',
         CURLOPT_POST => 1,
-        CURLOPT_POSTFIELDS => http_build_query(array('API' => 'Verify', 'XML' => $body)),
-        CURLOPT_RETURNTRANSFER => true
+        CURLOPT_POSTFIELDS => http_build_query(array('API' => 'Verify', 'XML' => $body))
     ]);
     $result = curl_exec($ch);
     if ($result === false) {
@@ -111,4 +110,15 @@ function store_address($address, $normalized_id = null)
         $values
     );
     return intval($wpdb->insert_id);
+}
+
+function update_coordinates($address_id, $coordinates)
+{
+    global $wpdb;
+    $address_table_name = $wpdb->prefix . 'lp_address';
+    $wpdb->update(
+        $address_table_name,
+        $coordinates,
+        array('id' => $address_id)
+    );
 }

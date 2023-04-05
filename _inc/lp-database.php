@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.26';
+$lp_db_version = '1.28';
 
 function lp_db_install()
 {
@@ -40,6 +40,9 @@ function lp_db_install()
 		`state` char(2) NOT NULL,
 		zip char(5) NOT NULL,
 		zip_ext char(4),
+		latitude varchar(20),
+		longitude varchar(20),
+		neighborhood varchar(40),
 		PRIMARY KEY  (id)
 	) $charset_collate;";
 	dbDelta($sql);

@@ -18,8 +18,7 @@ function verify_recaptcha($token)
             'secret' => reCAPTCHA_secret,
             'response' => $token,
             'remoteip' => $_SERVER['REMOTE_ADDR']
-        )),
-        CURLOPT_RETURNTRANSFER => true
+        ))
     ]);
     $result = curl_exec($ch);
     if ($result === false) {
