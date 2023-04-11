@@ -24,19 +24,18 @@ function lp_render_petition($atts = [], $content = null)
             return $output;
     }
 
-    $campaign = set_campaign($atts['campaign'], $output);
-    if (!$campaign) {
+    if (!set_campaign($atts['campaign'], $output)) {
         return $output;
     }
 
-    $output .= lp_render_petition_form($campaign, $content);
+    $output .= lp_render_petition_form($content, 1);
     return $output;
 }
 
 function set_campaign($campaign_slug, &$output)
 {
     if (isset($_SESSION['campaign']) && $_SESSION['campaign']->slug === $campaign_slug) {
-        return $_SESSION['campaign'];
+        return true;
     }
 
     global $wpdb;
@@ -53,7 +52,7 @@ function set_campaign($campaign_slug, &$output)
     $campaign = $results[0];
     $campaign->id = intval($campaign->id);
     $_SESSION['campaign'] = $campaign;
-    return $campaign;
+    return true;
 }
 
 function lp_attempt_submit(&$continue_form_render)
@@ -83,165 +82,186 @@ function lp_attempt_submit(&$continue_form_render)
         }
     }
 
-    //$content .= '<pre>$_POST = ' . var_export($_POST, true) . "\n" . '$_FILES = ' . var_export($_FILES, true) . '</pre>';
-
-    $email = array_key_exists('email', $_POST) ? $_POST['email'] : null;
-    $phone = array_key_exists('phone', $_POST) ? $_POST['phone'] : null;
-
-    if (!$email && !$phone) {
-        $content .= '<div class="submit-error">For verification purposes, an email address or phone number is required.</div>';
-        $continue_form_render = true;
-        return $content;
-    }
-
-    $sanitized_address = sanitize_address($_POST);
-
-    if (array_key_exists('Error', $sanitized_address)) {
-        $content .= '<div class="submit-error">An error occurred with the address submitted: ' . $sanitized_address['Error'] . '</div>';
-        $continue_form_render = true;
-        return $content;
-    }
-
     if (!array_key_exists('campaign', $_SESSION)) {
         $content .= '<div class="submit-error">Page timed out.  Please re-submit.</div>';
         $continue_form_render = true;
         return $content;
     }
 
-    if (!array_key_exists('signer_name', $_POST)) {
-        $content .= '<div class="submit-error">Name not submitted.  Please re-submit.</div>';
-        $continue_form_render = true;
-        return $content;
-    }
+    //$content .= '<pre>$_POST = ' . var_export($_POST, true) . "\n".' $_SESSION = ' . var_export($_SESSION, true) . "\n" . '$_FILES = ' . var_export($_FILES, true) . '</pre>';
+    if (!array_key_exists('lp_petition_step_1', $_SESSION) || !array_key_exists('title', $_POST)) {
+        $email = array_key_exists('email', $_POST) ? $_POST['email'] : null;
+        $phone = array_key_exists('phone', $_POST) ? $_POST['phone'] : null;
 
-    //$content .= '<div>Sanitized Address:<pre>' . var_export($sanitized_address, true) . '</pre></div>';
-
-    $sanitized_address_id = store_address($sanitized_address);
-    if (!$sanitized_address_id)
-        throw new Exception('No sanitized address ID. $sanitized_address = ' . var_export($sanitized_address, true));
-    //$content .= '<div>Sanitized address id:<pre>' . var_export($sanitized_address_id, true) . '</pre></div>';
-
-    $original_address_id = store_address($_POST, $sanitized_address_id);
-    if (!$original_address_id)
-        throw new Exception('No original address ID. $_POST = ' . var_export($_POST, true));
-    //$content .= '<div>Original address id:<pre>' . var_export($original_address_id, true) . '</pre></div>';
-
-    $table_name = $wpdb->prefix . 'lp_signer';
-
-    $values = array(
-        'campaign_id'         => $_SESSION['campaign']->id,
-        'name'                => $_POST['signer_name'],
-        'address_id'          => $sanitized_address_id,
-        'original_address_id' => $original_address_id,
-        'title'               => $_POST['title'],
-        'comments'            => $_POST['comments'],
-        'is_supporter'        => $_POST['is_supporter'] == 'true' ? 1 : 0,
-        'share_granted'       => array_key_exists('is_share', $_POST) ? 1 : 0,
-        'is_helper'           => array_key_exists('is_helper', $_POST) ? 1 : 0,
-        'email'               => $email,
-        'phone'               => $phone,
-    );
-
-    $signer = get_signer($_SESSION['campaign']->id, $_POST['signer_name'], $sanitized_address_id);
-
-    if (!$signer) {
-        $wpdb->insert($table_name, $values);
-    } else {
-        if ($signer->email && $signer->email !== $email) {
-            $content .= '<div class="submit-error">In order to submit changes, the same email address must be used which was used originally.</div>';
+        if (!$email && !$phone) {
+            $content .= '<div class="submit-error">For verification purposes, an email address or phone number is required.</div>';
             $continue_form_render = true;
             return $content;
         }
-        if ($signer->phone && $signer->phone !== $phone) {
-            $content .= '<div class="submit-error">In order to submit changes, the same phone number must be used which was used originally.</div>';
+
+        $sanitized_address = sanitize_address($_POST);
+
+        if (array_key_exists('Error', $sanitized_address)) {
+            $content .= '<div class="submit-error">An error occurred with the address submitted: ' . $sanitized_address['Error'] . '</div>';
             $continue_form_render = true;
             return $content;
         }
-        // Since we're not (currently) requiring authentication to make changes, record the changes are are being submitted
-        // to be able to detect if anything unusual is happening.
-        foreach ($values as $key => $value) {
-            if ($value !== $signer->$key) {
-                //$content .= '<div>Recording change to field ' . $key . ', old value: ' . $signer->$key . ' (' . gettype($signer->$key) . '), new value: ' . $value . ' (' . gettype($value) . ')</div>';
-                record_update($table_name, $key, $signer->id, $signer->$key);
-            }
+
+
+        if (!array_key_exists('signer_name', $_POST)) {
+            $content .= '<div class="submit-error">Name not submitted.  Please re-submit.</div>';
+            $continue_form_render = true;
+            return $content;
         }
-        $wpdb->update($table_name, $values, array('id' => $signer->id));
-    }
 
-    if (!$signer || $values['address_id'] !== $signer->address_id) {
-        $coordinates = geocode($sanitized_address);
-        if ($coordinates)
-            update_coordinates($sanitized_address_id, $coordinates);
-    }
+        //$content .= '<div>Sanitized Address:<pre>' . var_export($sanitized_address, true) . '</pre></div>';
 
-    if (!$signer) {
+        $sanitized_address_id = store_address($sanitized_address);
+        if (!$sanitized_address_id)
+            throw new Exception('No sanitized address ID. $sanitized_address = ' . var_export($sanitized_address, true));
+        //$content .= '<div>Sanitized address id:<pre>' . var_export($sanitized_address_id, true) . '</pre></div>';
+
+        $original_address_id = store_address($_POST, $sanitized_address_id);
+        if (!$original_address_id)
+            throw new Exception('No original address ID. $_POST = ' . var_export($_POST, true));
+        //$content .= '<div>Original address id:<pre>' . var_export($original_address_id, true) . '</pre></div>';
+
         $signer = get_signer($_SESSION['campaign']->id, $_POST['signer_name'], $sanitized_address_id);
-        if (!$signer) {
-            throw new Exception('Failed to upsert ' . $table_name);
-        }
-    }
+        //$content .= '<div>Signer:<pre>' . var_export($signer, true) . '</pre></div>';
 
-    if (isset($_FILES['photo']) && $_FILES['photo']['tmp_name']) {
-        $file = $_FILES['photo'];
-
-        $type = $file['type'];
-        if ($type !== 'image/jpeg') {
-            $content .= '<div class="submit-error">Photo should be a .jpg file</div>';
-            $continue_form_render = true;
-            return $content;
-        }
-
-        $tmp_path = $file['tmp_name'];
-
-        $upload_dir = wp_upload_dir();
-        $upload_dir = $upload_dir['basedir'] . '/local-petition/' . $_SESSION['campaign']->slug . '/' . $signer->id . '/';
-        if (!is_dir($upload_dir)) {
-            if (!mkdir($upload_dir, 0666, true)) throw new Exception('Failed to mkdir ' . $upload_dir);
-        }
-        $final_path = $upload_dir . $file['name'];
-
-        $result = move_uploaded_file($tmp_path, $final_path);
-        if (!$result)
-            throw new Exception('Failed to move uploaded file: ' . var_export($_FILES, true));
-
-        $result = $wpdb->update(
-            $table_name,
-            array(
-                'photo_file' => $file['name'],
-                'photo_file_type' => $file['type']
-            ),
-            array('id' => $signer->id)
-        );
-        $signer->photo_file = $file['name'];
-
-        if (!$result) {
-            throw new Exception('Failed to update ' . $table_name . ' with photo file');
-        }
-    }
-
-    if (!$continue_form_render) {
-        $content .= '<div id="post-submit">';
-        if ($values['is_supporter']) {
-            $content .= '<p style="font-size: xx-large">' . $signer->name . ', thank you for signing our petition!</p>';
-        } else {
-            $content .= '<p>' . $signer->name . ', thank you for your feedback.  We\'re sorry to hear that you don\'t support this initiative.';
-            if (strlen($values['comments']) > 5) {
-                $content .= '  Do your comments describe why?  (if not, hit back and leave more comments to help us understand why)';
-            } else {
-                $content .= '  Would you please hit back and add comments to help us understand why?';
+        if ($signer) {
+            if ($signer->email && $signer->email !== $email) {
+                $content .= '<div class="submit-error">In order to submit changes, the same email address must be used which was used originally.</div>';
+                $continue_form_render = true;
+                return $content;
             }
-            $content .= '</p>';
-        }
-        $content .= '<p><label>Title: <span>' . $values['title'] . '</span></label></p>';
-        $content .= '<p><label>Photo Provided: <span>' . ($signer->photo_file ? 'Yes' : 'No') . '</span></label></p>';
-        $content .= '<p><label>Consent Granted to Share: <span>' . ($values['share_granted'] ? 'Yes' : 'No') . '</span></label></p>';
-        $content .= '<p><label>I Want to Help: <span>' . ($values['is_helper'] ? 'Yes' : 'No') . '</span></label></p>';
-        $content .= '<p><label>Comments:<div class="comment-preview">' . $values['comments'] . '</div></label></p>';
-        $content .= '<p><i>If you wish to change anything, press back and make changes.  You may also make changes in the future if you return to this page.</i></p>';
-        $content .= '<p>Click this button to allow another individual to sign: <button type="button" onclick="location.href=\'' . get_permalink() . '\'">Sign Again</button></p>';
-        $content .= '</div>';
-    }
+            if ($signer->phone && $signer->phone !== $phone) {
+                $content .= '<div class="submit-error">In order to submit changes, the same phone number must be used which was used originally.</div>';
+                $continue_form_render = true;
+                return $content;
+            }
+            // If this person has already signed, load in values that they submitted previously.
+            $_POST['is_supporter'] = $signer->is_supporter ? 'true' : 'false';
+            $_POST['comments'] = $signer->comments;
+            $_POST['title'] = $signer->title;
+            if ($signer->is_helper) $_POST['is_helper'] = true;
+            if ($signer->share_granted) $_POST['is_share'] = true;
 
+            //$content .= '<div>$_POST:<pre>' . var_export($_POST, true) . '</pre></div>';
+        }
+
+        if (!$signer || $sanitized_address_id !== $signer->address_id) {
+            $coordinates = geocode($sanitized_address);
+            if ($coordinates)
+                update_coordinates($sanitized_address_id, $coordinates);
+        }
+
+        $_SESSION['lp_petition_step_1'] = array(
+            'name'                => $_POST['signer_name'],
+            'address_id'          => $sanitized_address_id,
+            'original_address_id' => $original_address_id,
+            'email'               => $email,
+            'phone'               => $phone,
+        );
+        $content = lp_render_petition_form($content, 2, $signer);
+    } else {
+        $table_name = $wpdb->prefix . 'lp_signer';
+
+        $step_2 = array(
+            'campaign_id'         => $_SESSION['campaign']->id,
+            'title'               => $_POST['title'],
+            'comments'            => $_POST['comments'],
+            'is_supporter'        => $_POST['is_supporter'] == 'true' ? 1 : 0,
+            'share_granted'       => array_key_exists('is_share', $_POST) ? 1 : 0,
+            'is_helper'           => array_key_exists('is_helper', $_POST) ? 1 : 0
+        );
+
+        $values = array_merge($_SESSION['lp_petition_step_1'], $step_2);
+
+        $signer = get_signer($_SESSION['campaign']->id, $values['name'], $values['address_id']);
+
+        if (!$signer) {
+            $wpdb->insert($table_name, $values);
+        } else {
+            // Since we're not (currently) requiring authentication to make changes, record the changes are are being submitted
+            // to be able to detect if anything unusual is happening.
+            foreach ($values as $key => $value) {
+                if ($value !== $signer->$key) {
+                    //$content .= '<div>Recording change to field ' . $key . ', old value: ' . $signer->$key . ' (' . gettype($signer->$key) . '), new value: ' . $value . ' (' . gettype($value) . ')</div>';
+                    record_update($table_name, $key, $signer->id, $signer->$key);
+                }
+            }
+            $wpdb->update($table_name, $values, array('id' => $signer->id));
+        }
+
+        if (!$signer) {
+            $signer = get_signer($_SESSION['campaign']->id, $values['name'], $values['address_id']);
+            if (!$signer) {
+                throw new Exception('Failed to upsert ' . $table_name);
+            }
+        }
+
+        if (isset($_FILES['photo']) && $_FILES['photo']['tmp_name']) {
+            $file = $_FILES['photo'];
+
+            $type = $file['type'];
+            if ($type !== 'image/jpeg') {
+                $content .= '<div class="submit-error">Photo should be a .jpg file</div>';
+                $continue_form_render = true;
+                return $content;
+            }
+
+            $tmp_path = $file['tmp_name'];
+
+            $upload_dir = wp_upload_dir();
+            $upload_dir = $upload_dir['basedir'] . '/local-petition/' . $_SESSION['campaign']->slug . '/' . $signer->id . '/';
+            if (!is_dir($upload_dir)) {
+                if (!mkdir($upload_dir, 0666, true)) throw new Exception('Failed to mkdir ' . $upload_dir);
+            }
+            $final_path = $upload_dir . $file['name'];
+
+            $result = move_uploaded_file($tmp_path, $final_path);
+            if (!$result)
+                throw new Exception('Failed to move uploaded file: ' . var_export($_FILES, true));
+
+            $result = $wpdb->update(
+                $table_name,
+                array(
+                    'photo_file' => $file['name'],
+                    'photo_file_type' => $file['type']
+                ),
+                array('id' => $signer->id)
+            );
+            $signer->photo_file = $file['name'];
+
+            if (!$result) {
+                throw new Exception('Failed to update ' . $table_name . ' with photo file');
+            }
+        }
+
+        if (!$continue_form_render) {
+            $content .= '<div id="post-submit">';
+            if ($values['is_supporter']) {
+                $content .= '<p style="font-size: xx-large">' . $signer->name . ', thank you for signing our petition!</p>';
+            } else {
+                $content .= '<p>' . $signer->name . ', thank you for your feedback.  We\'re sorry to hear that you don\'t support this initiative.';
+                if (strlen($values['comments']) > 5) {
+                    $content .= '  Do your comments describe why?  (if not, hit back and leave more comments to help us understand why)';
+                } else {
+                    $content .= '  Would you please hit back and add comments to help us understand why?';
+                }
+                $content .= '</p>';
+            }
+            $content .= '<p><label>Title: <span>' . $values['title'] . '</span></label></p>';
+            $content .= '<p><label>Photo Provided: <span>' . ($signer->photo_file ? 'Yes' : 'No') . '</span></label></p>';
+            $content .= '<p><label>Consent Granted to Share: <span>' . ($values['share_granted'] ? 'Yes' : 'No') . '</span></label></p>';
+            $content .= '<p><label>I Want to Help: <span>' . ($values['is_helper'] ? 'Yes' : 'No') . '</span></label></p>';
+            $content .= '<p><label>Comments:<div class="comment-preview">' . $values['comments'] . '</div></label></p>';
+            $content .= '<p><i>If you wish to change anything, press back and make changes.  You may also make changes in the future if you return to this page.</i></p>';
+            $content .= '<p>Click this button to allow another individual to sign: <button type="button" onclick="location.href=\'' . get_permalink() . '\'">Sign Again</button></p>';
+            $content .= '</div>';
+        }
+    }
     return $content;
 }
 
@@ -262,43 +282,48 @@ function get_signer($campaign_id, $name, $address_id)
     return $signer;
 }
 
-function lp_render_petition_form($campaign, $content)
+function lp_render_petition_form($content, $step, $signer = null)
 {
     if (LP_PRODUCTION)
         wp_enqueue_script('recaptcha');
     else
         $content .= '<p><i>This site is in debug/development mode</i></p>';
+
     $content .= '<form autocomplete="on" id="local-petition-form" class="petition" action="' . get_permalink() . '" method="post" enctype="multipart/form-data">';
+    if ($step == 1) {
+        $content .= '<p>' . get_input('Name', 'signer_name', true) . '</p>';
+        $content .= '<p>' . get_input('Address Line 1', 'line_1', true, 40) . '</p>';
+        $content .= '<p>' . get_input('Address Line 2 (optional)', 'line_2', false, 40) . '</p>';
+        $content .= '<p>' . get_input('City', 'city', true, 20) . '</p>';
+        $content .= '<p>' . get_state_input('State', 'state', true) . '</p>';
+        $content .= '<p>' . get_input('Zip', 'zip', true, 5) . '</p>';
+        $content .= '<p>' . get_input('Email', 'email', false, 50) . '</p>';
+        $content .= '<p>' . get_input('Phone', 'phone', false, 20) . '</p>';
+        $submit_title = 'Next';
+    } else if ($step == 2) {
+        $content .= '<p>Pick One:<br>';
+        $is_supporter = $_POST['is_supporter'] ?? 'true';
+        $content .= '<label><input type="radio" name="is_supporter" value="true"' . ($is_supporter == 'true' ? ' checked' : '') . '> Yes, I\'m a supporter</label><br>';
+        $content .= '<label><input type="radio" name="is_supporter" value="false"' . ($is_supporter == 'false' ? ' checked' : '') . '> No, I\'m not a supporter</input></label></p>';
+        //$content .= '<p>Optional Information:</p>';
+        $content .= '<p>' . get_textarea('Comments', 'comments') . '</p>';
+        $content .= '<p>' . get_input('Title', 'title', false, 50) . '</p>';
+        $content .= '<p><label>Photograph:<br><input type="file" id="photo" name="photo" value=""></label>';
+        if ($signer && $signer->photo_file) $content .= ' (Photo already uploaded)';
+        $content .= '</p>';
+        $is_helper = array_key_exists('is_helper', $_POST);
+        $content .= '<p><label><input type="checkbox" id="is_helper" name="is_helper"' . ($is_helper ? ' checked' : '') . '> I would like to get involved to help this effort.</label></p>';
+        $content .= $_SESSION['campaign']->privacy_statement;
 
-    $content .= '<p>Pick One:<br>';
-    $is_supporter = $_POST['is_supporter'] ?? 'true';
-    $content .= '<label><input type="radio" name="is_supporter" value="true"' . ($is_supporter == 'true' ? ' checked' : '') . '> Yes, I\'m a supporter</label><br>';
-    $content .= '<label><input type="radio" name="is_supporter" value="false"' . ($is_supporter == 'false' ? ' checked' : '') . '> No, I\'m not a supporter</input></label></p>';
-
-    $content .= '<p>' . get_input('Name', 'signer_name', true) . '</p>';
-    $content .= '<p>' . get_input('Address Line 1', 'line_1', true, 40) . '</p>';
-    $content .= '<p>' . get_input('Address Line 2 (optional)', 'line_2', false, 40) . '</p>';
-    $content .= '<p>' . get_input('City', 'city', true, 20) . '</p>';
-    $content .= '<p>' . get_state_input('State', 'state', true) . '</p>';
-    $content .= '<p>' . get_input('Zip', 'zip', true, 5) . '</p>';
-    $content .= '<p>' . get_input('Email', 'email', false, 50) . '</p>';
-    $content .= '<p>' . get_input('Phone', 'phone', false, 20) . '</p>';
-
-    $content .= '<p>Optional Information:</p>';
-    $content .= '<p>' . get_textarea('Comments', 'comments') . '</p>';
-    $content .= '<p>' . get_input('Title', 'title', false, 50) . '</p>';
-    $content .= '<p><label>Photograph:<br><input type="file" id="photo" name="photo" value=""></label></p>';
-    $is_helper = array_key_exists('is_helper', $_POST);
-    $content .= '<p><label><input type="checkbox" id="is_helper" name="is_helper"' . ($is_helper ? ' checked' : '') . '> I would like to get involved to help this effort.</label></p>';
-    $content .= $campaign->privacy_statement;
-
-    $is_share = array_key_exists('is_share', $_POST);
-    $content .= '<p><label><input type="checkbox" id="is_share" name="is_share"' . ($is_share ? ' checked' : '') . '> Yes, please share my name and optional information I have provided with site visitors.  <i>Sharing your name, comments, and photo will help promote this effort.</i></label></p>';
+        $is_share = array_key_exists('is_share', $_POST) || !$signer;
+        $content .= '<p><label><input type="checkbox" id="is_share" name="is_share"' . ($is_share ? ' checked' : '') . '> Yes, please share my name and optional information (comments, title, photo) I have provided with site visitors.  <i>Sharing your name, comments, and photo will help promote this effort.</i></label></p>';
+        $submit_title = 'Submit';
+    }
     if (LP_PRODUCTION) {
         $content .= '<script>function onSubmit(token) { document.getElementById("local-petition-form").submit(); }</script>';
-        $content .= '<p><button class="g-recaptcha" data-sitekey="' . reCAPTCHA_site_key . '" data-callback=\'onSubmit\' data-action=\'submit\'>Submit</button></p>';
+        $content .= '<p><button class="g-recaptcha" data-sitekey="' . reCAPTCHA_site_key . '" data-callback=\'onSubmit\' data-action=\'submit\'>' . $submit_title . '</button></p>';
     } else {
-        $content .= '<p><input type="submit"></p>';
+        $content .= '<p><input type="submit" value="' . $submit_title . '"></p>';
     }
     $content .= '</form>';
     return $content;
