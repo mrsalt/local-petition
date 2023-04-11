@@ -17,7 +17,7 @@ function lp_render_petition($atts = [], $content = null)
 
     $output = '';
 
-    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && array_key_exists('lp-petition-step', $_POST)) {
         $continue_form_render = true;
         $output = lp_attempt_submit($continue_form_render);
         if (!$continue_form_render)
@@ -325,6 +325,7 @@ function lp_render_petition_form($content, $step, $signer = null)
     } else {
         $content .= '<p><input type="submit" value="' . $submit_title . '"></p>';
     }
+    $content .= '<input type="hidden" name="lp-petition-step" value="' . $step . '">';
     $content .= '</form>';
     return $content;
 }
@@ -398,7 +399,7 @@ function get_state_input($label, $id)
     $states['WV'] = 'West Virginia';
     $states['WI'] = 'Wisconsin';
     $states['WY'] = 'Wyoming';
-    $value = array_key_exists($id, $_POST) ? esc_attr($_POST[$id]) : '';
+    $value = array_key_exists($id, $_POST) ? esc_attr($_POST[$id]) : $_SESSION['campaign']->default_state;
     $content = '<label for="' . $id . '">' . $label . ': <br><select name="' . $id . '" id="' . $id . '">';
     foreach ($states as $abbr => $name) {
         $content .= '<option value="' . $abbr . '"';
