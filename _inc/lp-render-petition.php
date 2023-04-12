@@ -232,11 +232,10 @@ function lp_attempt_submit(&$continue_form_render)
                 ),
                 array('id' => $signer->id)
             );
-            $signer->photo_file = $file['name'];
-
-            if (!$result) {
-                throw new Exception('Failed to update ' . $table_name . ' with photo file');
+            if ($result === false) {
+                throw new Exception('Failed to update ' . $table_name . ' with photo file.  $signer = ' . var_export($signer, true) . ', $file = ' . var_export($file, true));
             }
+            $signer->photo_file = $file['name'];
         }
 
         if (!$continue_form_render) {
@@ -305,7 +304,7 @@ function lp_render_petition_form($content, $step, $signer = null)
         $is_supporter = $_POST['is_supporter'] ?? 'true';
         $content .= '<label><input type="radio" name="is_supporter" value="true"' . ($is_supporter == 'true' ? ' checked' : '') . '> Yes, I\'m a supporter</label><br>';
         $content .= '<label><input type="radio" name="is_supporter" value="false"' . ($is_supporter == 'false' ? ' checked' : '') . '> No, I\'m not a supporter</input></label></p>';
-        //$content .= '<p>Optional Information:</p>';
+        $content .= '<p>~~ Optional Information ~~</p>';
         $content .= '<p>' . get_textarea('Comments', 'comments') . '</p>';
         if ($_SESSION['campaign']->comment_suggestion)
             $content .= '<p>' . $_SESSION['campaign']->comment_suggestion . '</p>';
