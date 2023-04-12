@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.30';
+$lp_db_version = '1.31';
 
 function lp_db_install()
 {
@@ -25,6 +25,8 @@ function lp_db_install()
 		name varchar(50) NOT NULL,
 		slug varchar(15) NOT NULL,
 		privacy_statement text,
+		comment_suggestion text,
+		title_suggestion text,
 		default_state char(2),
 		status ENUM ('Active','Successful','Abandoned') NOT NULL,
 		PRIMARY KEY  (id)

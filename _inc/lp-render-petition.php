@@ -307,7 +307,11 @@ function lp_render_petition_form($content, $step, $signer = null)
         $content .= '<label><input type="radio" name="is_supporter" value="false"' . ($is_supporter == 'false' ? ' checked' : '') . '> No, I\'m not a supporter</input></label></p>';
         //$content .= '<p>Optional Information:</p>';
         $content .= '<p>' . get_textarea('Comments', 'comments') . '</p>';
+        if ($_SESSION['campaign']->comment_suggestion)
+            $content .= '<p>' . $_SESSION['campaign']->comment_suggestion . '</p>';
         $content .= '<p>' . get_input('Title', 'title', false, 50) . '</p>';
+        if ($_SESSION['campaign']->title_suggestion)
+            $content .= '<p>' . $_SESSION['campaign']->title_suggestion . '</p>';
         $content .= '<p><label>Photograph:<br><input type="file" id="photo" name="photo" value=""></label>';
         if ($signer && $signer->photo_file) $content .= ' (Photo already uploaded)';
         $content .= '</p>';
