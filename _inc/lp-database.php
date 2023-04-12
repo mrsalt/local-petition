@@ -11,7 +11,7 @@ function lp_db_install()
 
 	if ($installed_ver == $lp_db_version) return;
 
-	error_log('Notice: installed DB version = '.$installed_ver.', code version = '.$lp_db_version.', performing update.');
+	error_log('Notice: installed DB version = ' . $installed_ver . ', code version = ' . $lp_db_version . ', performing update.');
 
 	$charset_collate = $wpdb->get_charset_collate();
 	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -62,7 +62,7 @@ function lp_db_install()
 		name varchar(50) NOT NULL,
 		address_id mediumint(9) NOT NULL,
 		original_address_id mediumint(9) NOT NULL,
-		title varchar(50),
+		title varchar(70),
 		comments text,
 		photo_file varchar(50),
 		photo_file_type varchar(15),
@@ -100,8 +100,9 @@ function lp_db_install()
 		update_option('lp_db_version', $lp_db_version);
 }
 
-function check_for_constraint($constraint, $type) {
-    $sql = "SELECT COUNT(*)
+function check_for_constraint($constraint, $type)
+{
+	$sql = "SELECT COUNT(*)
     FROM information_schema.TABLE_CONSTRAINTS
     WHERE
         CONSTRAINT_SCHEMA = DATABASE() AND
@@ -116,7 +117,8 @@ function lp_db_install_data()
 	global $wpdb;
 }
 
-function prepare_query($query, ...$args ) {
+function prepare_query($query, ...$args)
+{
 	// wordpress' prepare function does not handle null values the same way the insert function does.
 	// insert will insert null values, but prepare() will convert these null values to empty strings,
 	// causing the sequence of inserting followed by a query to be non-idempotent.  :(
@@ -126,11 +128,9 @@ function prepare_query($query, ...$args ) {
 	foreach ($args as $arg) {
 		if ($arg === null) {
 			$replaced[] = 'NULL';
-		}
-		else if (gettype($arg) == 'string') {
-			$replaced[] = '\''.addslashes($arg).'\'';
-		}
-		else {
+		} else if (gettype($arg) == 'string') {
+			$replaced[] = '\'' . addslashes($arg) . '\'';
+		} else {
 			$replaced[] = $arg;
 		}
 	}
