@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.31';
+$lp_db_version = '1.32';
 
 function lp_db_install()
 {
@@ -91,6 +91,16 @@ function lp_db_install()
 		field varchar(32) NOT NULL,
 		previous text,
 		PRIMARY KEY  (update_id)
+	) $charset_collate;";
+	dbDelta($sql);
+
+	$table_name = $wpdb->prefix . 'lp_contact_request';
+	$sql = "CREATE TABLE $table_name (
+		created timestamp DEFAULT CURRENT_TIMESTAMP,
+		status ENUM ('Unread','Read','Response Sent','Will Not Respond') NOT NULL DEFAULT 'Unread',
+		name varchar(50) NOT NULL,
+		email varchar(50),
+		comments text NOT NULL
 	) $charset_collate;";
 	dbDelta($sql);
 

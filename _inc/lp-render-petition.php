@@ -2,6 +2,7 @@
 
 require_once('usps-address-sanitizer.php');
 require_once('googlemaps.php');
+require_once('lp-form-utils.php');
 
 function lp_render_petition($atts = [], $content = null)
 {
@@ -65,21 +66,8 @@ function lp_attempt_submit(&$continue_form_render)
     // This is annoying.  https://wordpress.stackexchange.com/questions/34866/stop-wordpress-automatically-escaping-post-data
     $_POST = wp_unslash($_POST);
 
-    if (LP_PRODUCTION) {
-        if (!array_key_exists('g-recaptcha-response', $_POST)) {
-            throw new Exception('g-recaptcha-response not found');
-        }
-        $result = verify_recaptcha($_POST['g-recaptcha-response']);
-        if (!$result->success) {
-            if (in_array('timeout-or-duplicate', $result->{'error-codes'})) {
-                $content .= '<div class="submit-error">Duplicate submission error.  Please scroll to the bottom and submit again.</div>';
-                $continue_form_render = true;
-                return $content;
-            } else {
-                $content .= '<div class="submit-error">Human verification failed.</div>';
-                return $content;
-            }
-        }
+    if (!check_captcha_in_post_body($content, $continue_form_render)) {
+        return $content;
     }
 
     if (!array_key_exists('campaign', $_SESSION)) {
@@ -290,14 +278,14 @@ function lp_render_petition_form($content, $step, $signer = null)
 
     $content .= '<form autocomplete="on" id="local-petition-form" class="petition" action="' . get_permalink() . '" method="post" enctype="multipart/form-data">';
     if ($step == 1) {
-        $content .= '<p>' . get_input('Name', 'signer_name', true) . '</p>';
+        $content .= '<p>' . get_input('Name', 'signer_name', true, 50) . '</p>';
         $content .= '<p>' . get_input('Address Line 1', 'line_1', true, 40) . '</p>';
         $content .= '<p>' . get_input('Address Line 2 (optional)', 'line_2', false, 40) . '</p>';
         $content .= '<p>' . get_input('City', 'city', true, 20) . '</p>';
         $content .= '<p>' . get_state_input('State', 'state', true) . '</p>';
         $content .= '<p>' . get_input('Zip', 'zip', true, 5) . '</p>';
-        $content .= '<p>' . get_input('Email', 'email', false, 50) . '</p>';
-        $content .= '<p>' . get_input('Phone', 'phone', false, 20) . '</p>';
+        $content .= '<p>' . get_input('Email', 'email', false, 50, 'email') . '</p>';
+        $content .= '<p>' . get_input('Phone', 'phone', false, 20, 'tel') . '</p>';
         $submit_title = 'Next';
     } else if ($step == 2) {
         $content .= '<p>Pick One:<br>';
@@ -322,100 +310,8 @@ function lp_render_petition_form($content, $step, $signer = null)
         $content .= '<p><label><input type="checkbox" id="is_share" name="is_share"' . ($is_share ? ' checked' : '') . '> Yes, please share my name and optional information (comments, title, photo) I have provided with site visitors.  <i>Sharing your name, comments, and photo will help promote this effort.</i></label></p>';
         $submit_title = 'Submit';
     }
-    if (LP_PRODUCTION) {
-        $content .= '<script>function onSubmit(token) { document.getElementById("local-petition-form").submit(); }</script>';
-        $content .= '<p><button class="g-recaptcha" data-sitekey="' . reCAPTCHA_site_key . '" data-callback=\'onSubmit\' data-action=\'submit\'>' . $submit_title . '</button></p>';
-    } else {
-        $content .= '<p><input type="submit" value="' . $submit_title . '"></p>';
-    }
+    $content .= add_submit_button_with_captcha($submit_title);
     $content .= '<input type="hidden" name="lp-petition-step" value="' . $step . '">';
     $content .= '</form>';
     return $content;
-}
-
-function get_input($label, $id, $required = false, $max_chars = false)
-{
-    $value = array_key_exists($id, $_POST) ? esc_attr($_POST[$id]) : '';
-    return
-        '<label for="' . $id . '">' . $label . ': <br>' . //<span>*</span>
-        '<input id="' . $id . '" type="text" name="' . $id . '" value="' . $value . '"' . ($required ? ' required="true"' : '') . ($max_chars ? ' maxlength="' . $max_chars . '"' : '') . '></label>';
-}
-
-function get_textarea($label, $id)
-{
-    $value = array_key_exists($id, $_POST) ? esc_textarea($_POST[$id]) : '';
-    return
-        '<label for="' . $id . '">' . $label . ': <br>' . //<span>*</span>
-        '<textarea id="' . $id . '" name="' . $id . '" rows="10">' . $value . '</textarea></label>';
-}
-
-function get_state_input($label, $id)
-{
-    $states['AL'] = 'Alabama';
-    $states['AK'] = 'Alaska';
-    $states['AZ'] = 'Arizona';
-    $states['AR'] = 'Arkansas';
-    $states['CA'] = 'California';
-    $states['CO'] = 'Colorado';
-    $states['CT'] = 'Connecticut';
-    $states['DE'] = 'Delaware';
-    $states['DC'] = 'District Of Columbia';
-    $states['FL'] = 'Florida';
-    $states['GA'] = 'Georgia';
-    $states['HI'] = 'Hawaii';
-    $states['ID'] = 'Idaho';
-    $states['IL'] = 'Illinois';
-    $states['IN'] = 'Indiana';
-    $states['IA'] = 'Iowa';
-    $states['KS'] = 'Kansas';
-    $states['KY'] = 'Kentucky';
-    $states['LA'] = 'Louisiana';
-    $states['ME'] = 'Maine';
-    $states['MD'] = 'Maryland';
-    $states['MA'] = 'Massachusetts';
-    $states['MI'] = 'Michigan';
-    $states['MN'] = 'Minnesota';
-    $states['MS'] = 'Mississippi';
-    $states['MO'] = 'Missouri';
-    $states['MT'] = 'Montana';
-    $states['NE'] = 'Nebraska';
-    $states['NV'] = 'Nevada';
-    $states['NH'] = 'New Hampshire';
-    $states['NJ'] = 'New Jersey';
-    $states['NM'] = 'New Mexico';
-    $states['NY'] = 'New York';
-    $states['NC'] = 'North Carolina';
-    $states['ND'] = 'North Dakota';
-    $states['OH'] = 'Ohio';
-    $states['OK'] = 'Oklahoma';
-    $states['OR'] = 'Oregon';
-    $states['PA'] = 'Pennsylvania';
-    $states['RI'] = 'Rhode Island';
-    $states['SC'] = 'South Carolina';
-    $states['SD'] = 'South Dakota';
-    $states['TN'] = 'Tennessee';
-    $states['TX'] = 'Texas';
-    $states['UT'] = 'Utah';
-    $states['VT'] = 'Vermont';
-    $states['VA'] = 'Virginia';
-    $states['WA'] = 'Washington';
-    $states['WV'] = 'West Virginia';
-    $states['WI'] = 'Wisconsin';
-    $states['WY'] = 'Wyoming';
-    $value = array_key_exists($id, $_POST) ? esc_attr($_POST[$id]) : $_SESSION['campaign']->default_state;
-    $content = '<label for="' . $id . '">' . $label . ': <br><select name="' . $id . '" id="' . $id . '">';
-    foreach ($states as $abbr => $name) {
-        $content .= '<option value="' . $abbr . '"';
-        if ($abbr == $value) $content .= ' selected';
-        $content .= '>' . $name . '</option>';
-    }
-    $content .= '</select></label>';
-    return $content;
-}
-
-function record_update($table_name, $field, $id, $previous_value)
-{
-    global $wpdb;
-    $values = array('table_name' => $table_name, 'id' => $id, 'field' => $field, 'previous' => var_export($previous_value, true));
-    $wpdb->insert($wpdb->prefix . 'lp_updates', $values);
 }
