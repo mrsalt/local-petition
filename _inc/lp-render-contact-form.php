@@ -16,7 +16,7 @@ function lp_contact_form($atts = [], $content = null)
     }
 
     $style = 'label';
-    if (array_key_exists('style', $atts))
+    if (is_array($atts) && array_key_exists('style', $atts))
         $style = $atts['style'];
 
     $output .= lp_render_contact_form($style);

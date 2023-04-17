@@ -17,7 +17,7 @@ function lp_render_petition($atts = [], $content = null)
     }
 
     $style = 'label';
-    if (array_key_exists('style', $atts))
+    if (is_array($atts) && array_key_exists('style', $atts))
         $style = $atts['style'];
 
     $output = '';
