@@ -123,7 +123,7 @@ function lp_attempt_submit(&$continue_form_render)
                 $continue_form_render = true;
                 return $content;
             }
-            if ($signer->phone && $signer->phone !== $phone) {
+            if ($signer->phone && !are_phone_numbers_equal($signer->phone, $phone)) {
                 $content .= '<div class="submit-error">In order to submit changes, the same phone number must be used which was used originally.</div>';
                 $continue_form_render = true;
                 return $content;

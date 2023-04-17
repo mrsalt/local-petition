@@ -161,3 +161,10 @@ function record_update($table_name, $field, $id, $previous_value)
     $values = array('table_name' => $table_name, 'id' => $id, 'field' => $field, 'previous' => var_export($previous_value, true));
     $wpdb->insert($wpdb->prefix . 'lp_updates', $values);
 }
+
+function are_phone_numbers_equal($phone1, $phone2) {
+    $values_to_ignore = array(" ", "(", ")", "-");
+    $clean_phone1 = str_replace($values_to_ignore, '', $phone1);
+    $clean_phone2 = str_replace($values_to_ignore, '', $phone2);
+    return $clean_phone1 === $clean_phone2;
+}
