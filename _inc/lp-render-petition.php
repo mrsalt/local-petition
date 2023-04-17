@@ -16,11 +16,15 @@ function lp_render_petition($atts = [], $content = null)
         return 'Error: no "campaign" attribute found in shortcode <b>local_petition</b>';
     }
 
+    $style = 'label';
+    if (array_key_exists('style', $atts))
+        $style = $atts['style'];
+
     $output = '';
 
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && array_key_exists('lp-petition-step', $_POST)) {
         $continue_form_render = true;
-        $output = lp_attempt_submit($continue_form_render);
+        $output = lp_attempt_submit($style, $continue_form_render);
         if (!$continue_form_render)
             return $output;
     }
@@ -29,7 +33,7 @@ function lp_render_petition($atts = [], $content = null)
         return $output;
     }
 
-    $output .= lp_render_petition_form($content, 1);
+    $output .= lp_render_petition_form($style, $content, 1);
     return $output;
 }
 
@@ -56,7 +60,7 @@ function set_campaign($campaign_slug, &$output)
     return true;
 }
 
-function lp_attempt_submit(&$continue_form_render)
+function lp_attempt_submit($style, &$continue_form_render)
 {
     global $wpdb;
 
@@ -151,7 +155,7 @@ function lp_attempt_submit(&$continue_form_render)
             'email'               => $email,
             'phone'               => $phone,
         );
-        $content = lp_render_petition_form($content, 2, $signer);
+        $content = lp_render_petition_form($style, $content, 2, $signer);
     } else {
         $table_name = $wpdb->prefix . 'lp_signer';
 
@@ -269,7 +273,7 @@ function get_signer($campaign_id, $name, $address_id)
     return $signer;
 }
 
-function lp_render_petition_form($content, $step, $signer = null)
+function lp_render_petition_form($style, $content, $step, $signer = null)
 {
     if (LP_PRODUCTION)
         wp_enqueue_script('recaptcha');
@@ -278,14 +282,14 @@ function lp_render_petition_form($content, $step, $signer = null)
 
     $content .= '<form autocomplete="on" id="local-petition-form" class="petition" action="' . get_permalink() . '" method="post" enctype="multipart/form-data">';
     if ($step == 1) {
-        $content .= '<p>' . get_input('Name', 'signer_name', true, 50) . '</p>';
-        $content .= '<p>' . get_input('Address Line 1', 'line_1', true, 40) . '</p>';
-        $content .= '<p>' . get_input('Address Line 2 (optional)', 'line_2', false, 40) . '</p>';
-        $content .= '<p>' . get_input('City', 'city', true, 20) . '</p>';
-        $content .= '<p>' . get_state_input('State', 'state', true) . '</p>';
-        $content .= '<p>' . get_input('Zip', 'zip', true, 5) . '</p>';
-        $content .= '<p>' . get_input('Email', 'email', false, 50, 'email') . '</p>';
-        $content .= '<p>' . get_input('Phone', 'phone', false, 20, 'tel') . '</p>';
+        $content .= '<p>' . get_input('Name', 'signer_name', required: true, max_chars: 50, style: $style) . '</p>';
+        $content .= '<p>' . get_input('Address Line 1', 'line_1', required: true, max_chars: 40, style: $style) . '</p>';
+        $content .= '<p>' . get_input('Address Line 2 (optional)', 'line_2', required: false, max_chars: 40, style: $style) . '</p>';
+        $content .= '<p>' . get_input('City', 'city', required: true, max_chars: 20, style: $style) . '</p>';
+        $content .= '<p>' . get_state_input('State', 'state', required: true, style: $style) . '</p>';
+        $content .= '<p>' . get_input('Zip', 'zip', required: true, max_chars: 5, style: $style) . '</p>';
+        $content .= '<p>' . get_input('Email', 'email', required: false, max_chars: 50, type: 'email', style: $style) . '</p>';
+        $content .= '<p>' . get_input('Phone', 'phone', required: false, max_chars: 20, type: 'tel', style: $style) . '</p>';
         $submit_title = 'Next';
     } else if ($step == 2) {
         $content .= '<p>Pick One:<br>';
@@ -293,10 +297,10 @@ function lp_render_petition_form($content, $step, $signer = null)
         $content .= '<label><input type="radio" name="is_supporter" value="true"' . ($is_supporter == 'true' ? ' checked' : '') . '> Yes, I\'m a supporter</label><br>';
         $content .= '<label><input type="radio" name="is_supporter" value="false"' . ($is_supporter == 'false' ? ' checked' : '') . '> No, I\'m not a supporter</input></label></p>';
         $content .= '<p>~~ Optional Information ~~</p>';
-        $content .= '<p>' . get_textarea('Comments', 'comments') . '</p>';
+        $content .= '<p>' . get_textarea('Comments', 'comments', style: $style) . '</p>';
         if ($_SESSION['campaign']->comment_suggestion)
             $content .= '<p>' . $_SESSION['campaign']->comment_suggestion . '</p>';
-        $content .= '<p>' . get_input('Title', 'title', false, 50) . '</p>';
+        $content .= '<p>' . get_input('Title', 'title', required: false, max_chars: 50, style: $style) . '</p>';
         if ($_SESSION['campaign']->title_suggestion)
             $content .= '<p>' . $_SESSION['campaign']->title_suggestion . '</p>';
         $content .= '<p><label>Photograph:<br><input type="file" id="photo" name="photo" value=""></label>';

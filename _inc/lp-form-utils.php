@@ -47,51 +47,55 @@ function add_submit_button_with_captcha($title)
 {
     if (LP_PRODUCTION) {
         return
-            '<script>'.
-            '(function () {'.
-            '  let captchaCompleted = false;'.
-            '  document.getElementById("local-petition-form").addEventListener("submit", (event) => {'.
-            '    if (captchaCompleted) return;'.
-            '    event.preventDefault();'.
-            '    grecaptcha.ready(function() {'.
-            '      grecaptcha.execute("'.reCAPTCHA_site_key.'", {action: "submit"}).then(function(token) {'.
-            '        captchaCompleted = true;'.
-            '        document.getElementById("g-recaptcha-response").value = token;'.
-            '        document.getElementById("local-petition-form").submit();'.
-            '      });'.
-            '    });'.
-            '  });'.
-            '})();'.
-            '</script>'.
-            '<input type="hidden" name="g-recaptcha-response" id="g-recaptcha-response">'.
+            '<script>' .
+            '(function () {' .
+            '  let captchaCompleted = false;' .
+            '  document.getElementById("local-petition-form").addEventListener("submit", (event) => {' .
+            '    if (captchaCompleted) return;' .
+            '    event.preventDefault();' .
+            '    grecaptcha.ready(function() {' .
+            '      grecaptcha.execute("' . reCAPTCHA_site_key . '", {action: "submit"}).then(function(token) {' .
+            '        captchaCompleted = true;' .
+            '        document.getElementById("g-recaptcha-response").value = token;' .
+            '        document.getElementById("local-petition-form").submit();' .
+            '      });' .
+            '    });' .
+            '  });' .
+            '})();' .
+            '</script>' .
+            '<input type="hidden" name="g-recaptcha-response" id="g-recaptcha-response">' .
             '<p><button type="submit" class="g-recaptcha">' . $title . '</button></p>';
     } else {
         return '<p><button type="submit">' . $title . '</button></p>';
     }
 }
 
-function get_input($label, $id, $required = false, $max_chars = false, $type = 'text')
+function get_input($label, $id, $required = false, $max_chars = false, $type = 'text', $style = 'label')
 {
     $value = array_key_exists($id, $_POST) ? esc_attr($_POST[$id]) : '';
-    return
-        '<label for="' . $id . '">' . $label . ': <br>' . //<span>*</span>
-        '<input id="' . $id . '"'
+    return ($style == 'label' ? '<label for="' . $id . '">' . $label . ': <br>' : '') //<span>*</span>
+        . '<input id="' . $id . '"'
         . ' type="' . $type . '"'
         . ' name="' . $id . '"'
-        . ' ' . (strlen($value) > 0 ? 'value="' . $value . '"' : '')
+        . ($style == 'placeholder' ? ' placeholder="' . esc_attr($label) . '"' : '')
+        . (strlen($value) > 0 ? ' value="' . $value . '"' : '')
         . ($required ? ' required="true"' : '')
         . ($max_chars ? ' maxlength="' . $max_chars . '"' : '') . '></label>';
 }
 
-function get_textarea($label, $id, $required = false)
+function get_textarea($label, $id, $required = false, $style = 'label')
 {
     $value = array_key_exists($id, $_POST) ? esc_textarea($_POST[$id]) : '';
-    return
-        '<label for="' . $id . '">' . $label . ': <br>' . //<span>*</span>
-        '<textarea id="' . $id . '" name="' . $id . '" rows="10"' . ($required ? ' required="true"' : '') . '>' . $value . '</textarea></label>';
+    return ($style == 'label' ? '<label for="' . $id . '">' . $label . ': <br>' : '') //<span>*</span>
+        . '<textarea id="' . $id . '"'
+        . ' name="' . $id . '"'
+        . ' rows="10"'
+        . ($required ? ' required="true"' : '')
+        . ($style == 'placeholder' ? ' placeholder="' . esc_attr($label) . '"' : '')
+        . '>' . $value . '</textarea></label>';
 }
 
-function get_state_input($label, $id)
+function get_state_input($label, $id, $required = false, $style = 'label')
 {
     $states['AL'] = 'Alabama';
     $states['AK'] = 'Alaska';
@@ -145,7 +149,9 @@ function get_state_input($label, $id)
     $states['WI'] = 'Wisconsin';
     $states['WY'] = 'Wyoming';
     $value = array_key_exists($id, $_POST) ? esc_attr($_POST[$id]) : $_SESSION['campaign']->default_state;
-    $content = '<label for="' . $id . '">' . $label . ': <br><select name="' . $id . '" id="' . $id . '">';
+    $content = ($style == 'label' ? '<label for="' . $id . '">' . $label . ': <br>' : '');
+    $content .= '<select name="' . $id . '" id="' . $id . '">';
+    if ($required) $content .= ' required="true"';
     foreach ($states as $abbr => $name) {
         $content .= '<option value="' . $abbr . '"';
         if ($abbr == $value) $content .= ' selected';
@@ -162,7 +168,8 @@ function record_update($table_name, $field, $id, $previous_value)
     $wpdb->insert($wpdb->prefix . 'lp_updates', $values);
 }
 
-function are_phone_numbers_equal($phone1, $phone2) {
+function are_phone_numbers_equal($phone1, $phone2)
+{
     $values_to_ignore = array(" ", "(", ")", "-");
     $clean_phone1 = str_replace($values_to_ignore, '', $phone1);
     $clean_phone2 = str_replace($values_to_ignore, '', $phone2);

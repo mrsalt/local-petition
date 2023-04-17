@@ -15,7 +15,11 @@ function lp_contact_form($atts = [], $content = null)
             return $output;
     }
 
-    $output .= lp_render_contact_form();
+    $style = 'label';
+    if (array_key_exists('style', $atts))
+        $style = $atts['style'];
+
+    $output .= lp_render_contact_form($style);
     return $output;
 }
 
@@ -71,7 +75,7 @@ function lp_attempt_submit_contact_form(&$continue_form_render)
     return $content;
 }
 
-function lp_render_contact_form()
+function lp_render_contact_form($style)
 {
     $content = '';
     if (LP_PRODUCTION)
@@ -80,9 +84,9 @@ function lp_render_contact_form()
         $content .= '<p><i>This site is in debug/development mode</i></p>';
 
     $content .= '<form autocomplete="on" id="local-petition-form" class="petition" action="' . get_permalink() . '" method="post" enctype="multipart/form-data">';
-    $content .= '<p>' . get_input('Name', 'submitter_name', true, 50) . '</p>';
-    $content .= '<p>' . get_input('Email', 'email', true, 50, 'email') . '</p>';
-    $content .= '<p>' . get_textarea('Comments', 'comments', true) . '</p>';
+    $content .= '<p>' . get_input('Name', 'submitter_name', required: true, max_chars: 50, style: $style) . '</p>';
+    $content .= '<p>' . get_input('Email', 'email', required: true, max_chars: 50, type: 'email', style: $style) . '</p>';
+    $content .= '<p>' . get_textarea('Comments', 'comments', required: true, style: $style) . '</p>';
     $content .= add_submit_button_with_captcha('Submit');
     $content .= '</form>';
     return $content;
