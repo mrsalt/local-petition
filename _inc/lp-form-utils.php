@@ -46,8 +46,25 @@ function check_captcha_in_post_body(&$content, &$continue_form_render)
 function add_submit_button_with_captcha($title)
 {
     if (LP_PRODUCTION) {
-        return '<script>function onSubmit(token) { document.getElementById("local-petition-form").submit(); }</script>' .
-            '<p><button type="submit" class="g-recaptcha" data-sitekey="' . reCAPTCHA_site_key . '" data-callback=\'onSubmit\' data-action=\'submit\'>' . $title . '</button></p>';
+        return
+            '<script>'.
+            '(function () {'.
+            '  let captchaCompleted = false;'.
+            '  document.getElementById("local-petition-form").addEventListener("submit", (event) => {'.
+            '    if (captchaCompleted) return;'.
+            '    event.preventDefault();'.
+            '    grecaptcha.ready(function() {'.
+            '      grecaptcha.execute("'.reCAPTCHA_site_key.'", {action: "submit"}).then(function(token) {'.
+            '        captchaCompleted = true;'.
+            '        document.getElementById("g-recaptcha-response").value = token;'.
+            '        document.getElementById("local-petition-form").submit();'.
+            '      });'.
+            '    });'.
+            '  });'.
+            '})();'.
+            '</script>'.
+            '<input type="hidden" name="g-recaptcha-response" id="g-recaptcha-response">'.
+            '<p><button type="submit" class="g-recaptcha">' . $title . '</button></p>';
     } else {
         return '<p><button type="submit">' . $title . '</button></p>';
     }

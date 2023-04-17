@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.32';
+$lp_db_version = '1.34';
 
 function lp_db_install()
 {
@@ -96,14 +96,17 @@ function lp_db_install()
 
 	$table_name = $wpdb->prefix . 'lp_contact_request';
 	$sql = "CREATE TABLE $table_name (
+		id mediumint(9) NOT NULL AUTO_INCREMENT,
 		created timestamp DEFAULT CURRENT_TIMESTAMP,
 		status ENUM ('Unread','Read','Response Sent','Will Not Respond') NOT NULL DEFAULT 'Unread',
 		name varchar(50) NOT NULL,
 		email varchar(50),
-		comments text NOT NULL
+		comments text NOT NULL,
+		PRIMARY KEY  (id)
 	) $charset_collate;";
 	dbDelta($sql);
 
+	error_log('Notice: updating lp_db_version to ' . $installed_ver);
 	if (!isset($installed_ver))
 		add_option('lp_db_version', $lp_db_version);
 	else
