@@ -38,3 +38,22 @@ form.petition input, select, button {
 #post-submit span {
     font-weight: bold;
 }
+
+div.counter-box {
+    box-sizing: border-box;
+    border: 1px solid gray;
+    padding: 20px;
+    font-family: Rubik, Arial, Helvetica, sans-serif;
+    text-align: center;
+    width: fit-content;
+}
+
+div.counter-box .counter {
+    font-size: 50px;
+    color: rgb(146, 196, 213);
+}
+
+div.counter-box .message {
+    font-size: 14px;
+    max-width: 120px;
+}
