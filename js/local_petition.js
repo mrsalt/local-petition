@@ -8,3 +8,19 @@ function onVisible(element, callback) {
       });
     }).observe(element);
 }
+
+function animateCounter(el, stopvalue, timeInterval) {
+    onVisible(el, (element) => {
+        element.innerText = '';
+        var count = 0;
+        let timeoutId;
+        timeoutId = setInterval(() => {
+            if (count == stopvalue) {
+                clearTimeout(timeoutId);
+                return;
+            }
+            count++;
+            element.innerText = count;
+        }, timeInterval);
+    });
+}

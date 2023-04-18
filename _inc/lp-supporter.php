@@ -10,6 +10,7 @@ function lp_supporter_counter($atts = [], $content = null)
     global $wpdb;
     $query = $atts['query'];
     $query = str_replace('${wpdb}', $wpdb->prefix, $query);
+    $query = str_replace('${less_than_one_day}', 'TIMESTAMPDIFF(DAY, ' . $wpdb->prefix . 'lp_signer.created, NOW()) < 1.0', $query);
     $message = htmlspecialchars($atts['message']);
 
     $result = $wpdb->get_results($wpdb->prepare($query));
@@ -32,22 +33,7 @@ function lp_supporter_counter($atts = [], $content = null)
     }
     $id = 'counter-' . md5($query);
     $timeInterval = 1000 / $count;
-    $script =
-        "<script>
-    onVisible(document.getElementById('$id'), (element) => {
-        element.innerText = '';
-        var count = 0;
-        let timeoutId;
-        timeoutId = setInterval(() => {
-            if (count == $count) {
-                clearTimeout(timeoutId);
-                return;
-            }
-            count++;
-            element.innerText = count;
-          }, $timeInterval);
-    })
-    </script>";
+    $script = "<script>animateCounter(document.getElementById('$id'), $count, $timeInterval);</script>";
     return
         "<div class=\"counter-box\">
       <div class=\"counter\" id=\"$id\">" . $count . "</div>
