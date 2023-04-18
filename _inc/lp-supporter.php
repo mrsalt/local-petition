@@ -19,9 +19,27 @@ function lp_supporter_counter($atts = [], $content = null)
         $count = $val;
         break;
     }
+    $id = 'counter-' . md5($query);
+    $timeInterval = 1000 / $count;
+    $script =
+        "<script>
+    onVisible(document.getElementById('$id'), (element) => {
+        element.innerText = '';
+        var count = 0;
+        let timeoutId;
+        timeoutId = setInterval(() => {
+            if (count == $count) {
+                clearTimeout(timeoutId);
+                return;
+            }
+            count++;
+            element.innerText = count;
+          }, $timeInterval);
+    })
+    </script>";
     return
         "<div class=\"counter-box\">
-      <div class=\"counter\">" . $count . "</div>
+      <div class=\"counter\" id=\"$id\">" . $count . "</div>
       <div class=\"message\">" . htmlspecialchars($atts['message']) . "</div>
-    </div>";
+    </div>" . $script;
 }
