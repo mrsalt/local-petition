@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.34';
+$lp_db_version = '1.35';
 
 function lp_db_install()
 {
@@ -71,6 +71,8 @@ function lp_db_install()
 		is_helper boolean NOT NULL,
 		email varchar(50),
 		phone varchar(20),
+		status ENUM ('Unreviewed','Approved','Quarantined') NOT NULL DEFAULT 'Unreviewed',
+		approved_id mediumint(9) NULL,
 		PRIMARY KEY  (id)
 	) $charset_collate;";
 	dbDelta($sql);

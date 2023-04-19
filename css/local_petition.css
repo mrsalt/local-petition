@@ -2,20 +2,20 @@ form.petition {
     font-size: medium
 }
 
-form.petition input, select, button {
+form.petition input,
+select,
+button {
     font-size: large;
     padding: 5px;
 }
 
-#zip {
-}
+#zip {}
 
 #state {
     font-size: large;
 }
 
-#city {
-}
+#city {}
 
 #comments {
     height: auto;
@@ -56,4 +56,34 @@ div.counter-box .counter {
 div.counter-box .message {
     font-size: 14px;
     max-width: 120px;
+}
+
+div.supporter-carousel {
+    padding: 20px;
+    border: 1px solid gray;
+    width: fit-content;
+}
+
+div.supporter-carousel .supporter-name {
+    border-top: 1px solid lightgray;
+    margin-top: 10px;
+    padding-top: 10px;
+    text-align: center;
+}
+
+div.supporter-carousel .supporter-title {
+    font-style: italic;
+    text-align: center;
+}
+
+div.supporter-carousel .supporter-photo {
+    width: 400px;
+    max-width: 100%;
+    border: 1px solid gray;
+}
+
+div.supporter-carousel .supporter-comments {
+    border-top: 1px solid lightgray;
+    margin-top: 10px;
+    padding-top: 10px;
 }

@@ -61,7 +61,11 @@ add_shortcode('local_petition_contact_form', 'lp_contact_form');
 require_once('_inc/lp-supporter.php');
 add_shortcode('supporter_map', 'lp_supporter_map');
 add_shortcode('supporter_counter', 'lp_supporter_counter');
+add_shortcode('supporter_carousel', 'lp_supporter_carousel');
 
+// Register AJAX handlers
+add_action( 'wp_ajax_lp_get_supporters_json', 'lp_get_supporters_json_handler' );
+add_action( 'wp_ajax_nopriv_lp_get_supporters_json', 'lp_get_supporters_json_handler' );
 
 wp_enqueue_style('local_petition_style', plugins_url('css/local_petition.css', __FILE__), false, LOCAL_PETITION_VERSION);
 wp_enqueue_script('local_petition_js', plugins_url('js/local_petition.js', __FILE__), array(), LOCAL_PETITION_VERSION);

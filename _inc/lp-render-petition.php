@@ -1,5 +1,6 @@
 <?php
 
+require_once('lp-init.php');
 require_once('usps-address-sanitizer.php');
 require_once('googlemaps.php');
 require_once('lp-form-utils.php');
@@ -16,11 +17,14 @@ function lp_render_petition($atts = [], $content = null)
         return 'Error: no "campaign" attribute found in shortcode <b>local_petition</b>';
     }
 
+    $output = '';
+    if (!set_campaign($atts['campaign'], $output)) {
+        return $output;
+    }
+
     $style = 'label';
     if (is_array($atts) && array_key_exists('style', $atts))
         $style = $atts['style'];
-
-    $output = '';
 
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && array_key_exists('lp-petition-step', $_POST)) {
         $continue_form_render = true;
@@ -29,35 +33,8 @@ function lp_render_petition($atts = [], $content = null)
             return $output;
     }
 
-    if (!set_campaign($atts['campaign'], $output)) {
-        return $output;
-    }
-
     $output .= lp_render_petition_form($style, $content, 1);
     return $output;
-}
-
-function set_campaign($campaign_slug, &$output)
-{
-    if (isset($_SESSION['campaign']) && $_SESSION['campaign']->slug === $campaign_slug) {
-        return true;
-    }
-
-    global $wpdb;
-    $campaign_table_name = $wpdb->prefix . 'lp_campaign';
-
-    $results = $wpdb->get_results(
-        $wpdb->prepare("SELECT * FROM {$campaign_table_name} WHERE slug = %s", $campaign_slug)
-    );
-
-    if (count($results) == 0) {
-        $output .= "Error: no campaign found with slug = \"{$campaign_slug}\"";
-        return false;
-    }
-    $campaign = $results[0];
-    $campaign->id = intval($campaign->id);
-    $_SESSION['campaign'] = $campaign;
-    return true;
 }
 
 function lp_attempt_submit($style, &$continue_form_render)
@@ -172,6 +149,7 @@ function lp_attempt_submit($style, &$continue_form_render)
 
         $signer = get_signer($_SESSION['campaign']->id, $values['name'], $values['address_id']);
 
+        $sensitive_info_changed = false;
         if (!$signer) {
             $wpdb->insert($table_name, $values);
         } else {
@@ -180,6 +158,8 @@ function lp_attempt_submit($style, &$continue_form_render)
             foreach ($values as $key => $value) {
                 if ($value !== $signer->$key) {
                     //$content .= '<div>Recording change to field ' . $key . ', old value: ' . $signer->$key . ' (' . gettype($signer->$key) . '), new value: ' . $value . ' (' . gettype($value) . ')</div>';
+                    if (in_array($key, array('title', 'comments')))
+                        $sensitive_info_changed = true;
                     record_update($table_name, $key, $signer->id, $signer->$key);
                 }
             }
@@ -227,7 +207,19 @@ function lp_attempt_submit($style, &$continue_form_render)
             if ($result === false) {
                 throw new Exception('Failed to update ' . $table_name . ' with photo file.  $signer = ' . var_export($signer, true) . ', $file = ' . var_export($file, true));
             }
+            $sensitive_info_changed = true;
             $signer->photo_file = $file['name'];
+        }
+
+        if ($sensitive_info_changed) {
+            $result = $wpdb->update(
+                $table_name,
+                array('status' => 'Unreviewed'),
+                array('id' => $signer->id)
+            );
+            if ($result === false) {
+                throw new Exception('Failed to update ' . $table_name . ' with status.  $signer = ' . var_export($signer, true) . ', $file = ' . var_export($file, true));
+            }
         }
 
         if (!$continue_form_render) {
