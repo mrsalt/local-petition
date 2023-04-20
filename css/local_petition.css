@@ -83,6 +83,8 @@ div.supporter-carousel .supporter-photo {
 }
 
 div.supporter-carousel .supporter-comments {
+    width: 400px;
+    max-width: 100%;
     border-top: 1px solid lightgray;
     margin-top: 10px;
     padding-top: 10px;

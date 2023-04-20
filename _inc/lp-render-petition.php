@@ -188,7 +188,7 @@ function lp_attempt_submit($style, &$continue_form_render)
             $upload_dir = wp_upload_dir();
             $upload_dir = $upload_dir['basedir'] . '/local-petition/' . $_SESSION['campaign']->slug . '/' . $signer->id . '/';
             if (!is_dir($upload_dir)) {
-                if (!mkdir($upload_dir, 0666, true)) throw new Exception('Failed to mkdir ' . $upload_dir);
+                if (!mkdir($upload_dir, 01777, true)) throw new Exception('Failed to mkdir ' . $upload_dir);
             }
             $final_path = $upload_dir . $file['name'];
 
