@@ -87,6 +87,7 @@ function lp_get_supporters_json_handler()
                      (photo_file IS NOT NULL AND photo_file != '') OR
                      (title IS NOT NULL AND title != ''))";
     $result = $wpdb->get_results($wpdb->prepare($query, $_SESSION['campaign']->id), ARRAY_A);
+    shuffle($result);
     wp_send_json($result);
     wp_die();
 }
