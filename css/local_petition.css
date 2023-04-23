@@ -61,30 +61,27 @@ div.counter-box .message {
 div.supporter-carousel {
     padding: 20px;
     border: 1px solid gray;
-    width: fit-content;
+    text-align: center;
 }
 
 div.supporter-carousel .supporter-name {
     border-top: 1px solid lightgray;
     margin-top: 10px;
     padding-top: 10px;
-    text-align: center;
 }
 
 div.supporter-carousel .supporter-title {
     font-style: italic;
-    text-align: center;
 }
 
 div.supporter-carousel .supporter-photo {
-    width: 400px;
+    width: 500px;
     max-width: 100%;
     border: 1px solid gray;
 }
 
 div.supporter-carousel .supporter-comments {
-    width: 400px;
-    max-width: 100%;
+    width: fit-content;
     border-top: 1px solid lightgray;
     margin-top: 10px;
     padding-top: 10px;
