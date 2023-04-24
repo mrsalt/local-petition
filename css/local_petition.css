@@ -75,7 +75,7 @@ div.supporter-carousel .supporter-title {
 }
 
 div.supporter-carousel .supporter-photo {
-    width: 500px;
+    max-height: 400px;
     max-width: 100%;
     border: 1px solid gray;
 }

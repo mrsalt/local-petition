@@ -36,23 +36,36 @@ function loadSupporterBox(el, campaignSlug) {
             arg = { current: 0, data: json, element: el, campaignSlug: campaignSlug };
             updateSupporterBox.call(arg);
             if (json.length > 1)
-                setInterval(updateSupporterBox.bind(arg), 5000);
+                setInterval(updateSupporterBox.bind(arg), 10000);
         });
 }
 
 function updateSupporterBox() {
-    if (this.current === this.data.length) this.current = 0;
     let person = this.data[this.current++];
+    if (this.current === this.data.length) this.current = 0;
 
     let photoElement = this.element.querySelector('.supporter-photo');
-    if (person.photo_file)
-        photoElement.src = '/wp-content/uploads/local-petition/' + this.campaignSlug + '/' + person.id + '/' + person.photo_file;
-    else
-        photoElement.src = '/wp-content/plugins/local-petition/images/placeholder-image-person.png';
+    photoElement.src = getImageUrl.call(this, person);
     this.element.querySelector('.supporter-name').innerText = person.name;
     this.element.querySelector('.supporter-title').innerText = person.title;
     this.element.querySelector('.supporter-comments').innerText = person.comments;
-    // I should preload next image...
+    this.preload = new Image();
+    this.preload.src = getNextImageUrl.call(this);
+}
+
+function getNextImageUrl() {
+    next = this.current;
+    next++;
+    if (next === this.data.length) next = 0;
+    let person = this.data[next];
+    return getImageUrl.call(this, person);
+}
+
+function getImageUrl(person) {
+    if (person.photo_file)
+        return '/wp-content/uploads/local-petition/' + this.campaignSlug + '/' + person.id + '/' + person.photo_file;
+    else
+        return '/wp-content/plugins/local-petition/images/placeholder-image-person.png';
 }
 
 // https://pqina.nl/blog/compress-image-before-upload/
