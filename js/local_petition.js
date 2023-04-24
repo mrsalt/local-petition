@@ -54,3 +54,84 @@ function updateSupporterBox() {
     this.element.querySelector('.supporter-comments').innerText = person.comments;
     // I should preload next image...
 }
+
+// https://pqina.nl/blog/compress-image-before-upload/
+const compressImage = async (file, { quality = 0.90, type = file.type, maxHeight = null, maxWidth = null }) => {
+    // Get as image data
+    const imageBitmap = await createImageBitmap(file);
+
+    let width = imageBitmap.width;
+    let height = imageBitmap.height;
+
+    if (maxHeight != null || maxWidth != null) {
+        let relativeSize = 1.0
+        if (maxWidth != null && width > maxWidth) {
+            relativeSize = maxWidth / width;
+        }
+        if (maxHeight != null && height > maxHeight) {
+            let relativeVSize = maxHeight / height;
+            if (relativeVSize < relativeSize) relativeSize = relativeVSize;
+        }
+        width = width * relativeSize;
+        height = height * relativeSize;
+    }
+
+    // Draw to canvas
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(imageBitmap, 0, 0, width, height);
+
+    // Turn into Blob
+    const blob = await new Promise((resolve) =>
+        canvas.toBlob(resolve, type, quality)
+    );
+
+    // Turn Blob into File
+    return new File([blob], file.name, {
+        type: blob.type,
+    });
+};
+
+// This method will watch for changes to the input specified.
+// It will compress any images that are selected to the specified maxWidth and maxHeight using quality level.
+function watchImageInput(input, quality = 0.8, maxWidth = null, maxHeight = null) {
+    input.addEventListener('change', (e) => {
+        // Get the files
+        const { files } = e.target;
+
+        // No files selected
+        if (!files.length) return;
+
+        // We'll store the files in this data transfer object
+        const dataTransfer = new DataTransfer();
+
+        promises = []
+        // For every file in the files list
+        for (const file of files) {
+            // We don't have to compress files that aren't images
+            if (!file.type.startsWith('image')) {
+                // Ignore this file, but do add it to our result
+                dataTransfer.items.add(file);
+                continue;
+            }
+
+            promises.push(compressImage(file, {
+                quality: quality,
+                type: 'image/jpeg',
+                maxWidth: maxWidth,
+                maxHeight: maxHeight
+            }).then(compressedFile => {
+                // Save back the compressed file instead of the original file
+                dataTransfer.items.add(compressedFile);
+            }));
+        }
+
+        Promise.all(promises).then(() => {
+            // Set value of the file input to our new files list
+            e.target.files = dataTransfer.files;
+        });
+    });
+}
+

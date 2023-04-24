@@ -305,6 +305,7 @@ function lp_render_petition_form($style, $content, $step, $signer = null)
         $is_share = array_key_exists('is_share', $_POST) || !$signer;
         $content .= '<p><label><input type="checkbox" id="is_share" name="is_share"' . ($is_share ? ' checked' : '') . '> Yes, please share my name and optional information (comments, title, photo) I have provided with site visitors.  <i>Sharing your name, comments, and photo will help promote this effort.</i></label></p>';
         $submit_title = 'Submit';
+        $content .= '<script>watchImageInput(document.getElementById(\'photo\'), 0.8, 1600, 1600)</script>';
     }
     $content .= add_submit_button_with_captcha($submit_title);
     $content .= '<input type="hidden" name="lp-petition-step" value="' . $step . '">';
