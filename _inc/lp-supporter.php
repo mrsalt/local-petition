@@ -63,6 +63,7 @@ function lp_supporter_carousel($atts = [], $content = null)
     // Return frame, and make request to get list of supporters via JSON.
     return "<div id=\"$id\" class=\"supporter-carousel\">
               <image class=\"supporter-photo\"></image>
+              <div class=\"nav-controls\"><span id=\"previous\">&#x23EE;</span><span id=\"play_pause\">&#x23EF;</span><span id=\"next\">&#x23ED;</span></div>
               <div class=\"supporter-name\"></div>
               <div class=\"supporter-title\"></div>
               <div class=\"supporter-comments\"></div>

@@ -33,17 +33,37 @@ function loadSupporterBox(el, campaignSlug) {
                 el.style.display = 'None';
                 return;
             }
-            arg = { current: 0, data: json, element: el, campaignSlug: campaignSlug };
+            arg = { current: 0, next: 1, data: json, element: el, campaignSlug: campaignSlug, mode: 'play' };
             updateSupporterBox.call(arg);
-            if (json.length > 1)
-                setInterval(updateSupporterBox.bind(arg), 10000);
+            if (json.length > 1) {
+                arg.timerId = setInterval(moveToNextSupporter.bind(arg), 10000);
+            }
+            let navControls = el.querySelector('.nav-controls');
+            navControls.style.display = json.length > 1 ? '' : 'None';
+            if (typeof jQuery == 'undefined')
+                navControls.addEventListener('click', clickNavControl.bind(arg));
+            else
+                jQuery(navControls).on('click', clickNavControl.bind(arg));
         });
 }
 
-function updateSupporterBox() {
-    let person = this.data[this.current++];
-    if (this.current === this.data.length) this.current = 0;
+function moveToNextSupporter() {
+    this.current = this.next;
+    this.next++;
+    if (this.next === this.data.length) this.next = 0;
+    updateSupporterBox.call(this);
+}
 
+function moveToPriorSupporter() {
+    this.current--;
+    if (this.current < 0) this.current = this.data.length - 1;
+    this.next = this.current + 1;
+    if (this.next === this.data.length) this.next = 0;
+    updateSupporterBox.call(this);
+}
+
+function updateSupporterBox() {
+    let person = this.data[this.current];
     let photoElement = this.element.querySelector('.supporter-photo');
     photoElement.src = getImageUrl.call(this, person);
     this.element.querySelector('.supporter-name').innerText = person.name;
@@ -54,11 +74,7 @@ function updateSupporterBox() {
 }
 
 function getNextImageUrl() {
-    next = this.current;
-    next++;
-    if (next === this.data.length) next = 0;
-    let person = this.data[next];
-    return getImageUrl.call(this, person);
+    return getImageUrl.call(this, this.data[this.next]);
 }
 
 function getImageUrl(person) {
@@ -66,6 +82,30 @@ function getImageUrl(person) {
         return '/wp-content/uploads/local-petition/' + this.campaignSlug + '/' + person.id + '/' + person.photo_file;
     else
         return '/wp-content/plugins/local-petition/images/placeholder-image-person.png';
+}
+
+function clickNavControl() {
+    if (event.target.id === 'previous' || event.target.id === 'next') {
+        clearInterval(this.timerId);
+        this.timerId = setInterval(moveToNextSupporter.bind(this), 10000);
+        if (event.target.id === 'previous')
+            moveToPriorSupporter.call(this);
+        else
+            moveToNextSupporter.call(this);
+        updateSupporterBox.call(this);
+    }
+    else if (event.target.id === 'play_pause') {
+        if (this.mode === 'play') {
+            this.mode = 'pause';
+            event.target.innerHTML = '&#x23F8;';
+            clearInterval(this.timerId);
+        }
+        else if (this.mode === 'pause') {
+            this.mode = 'play';
+            event.target.innerHTML = '&#x23EF;';
+            this.timerId = setInterval(moveToNextSupporter.bind(this), 10000);
+        }
+    }
 }
 
 // https://pqina.nl/blog/compress-image-before-upload/

@@ -64,6 +64,12 @@ div.supporter-carousel {
     text-align: center;
 }
 
+div.supporter-carousel .nav-controls span {
+    font-size: x-large;
+    margin: 5px;
+    cursor: pointer;
+}
+
 div.supporter-carousel .supporter-name {
     border-top: 1px solid lightgray;
     margin-top: 10px;
