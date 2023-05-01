@@ -87,7 +87,8 @@ function getImageUrl(person) {
 function clickNavControl() {
     if (event.target.id === 'previous' || event.target.id === 'next') {
         clearInterval(this.timerId);
-        this.timerId = setInterval(moveToNextSupporter.bind(this), 10000);
+        if (this.mode === 'play')
+            this.timerId = setInterval(moveToNextSupporter.bind(this), 10000);
         if (event.target.id === 'previous')
             moveToPriorSupporter.call(this);
         else
