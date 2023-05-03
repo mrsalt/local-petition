@@ -189,3 +189,72 @@ function watchImageInput(input, quality = 0.8, maxWidth = null, maxHeight = null
     });
 }
 
+// position should be an object like this:
+// const position = { lat: -25.344, lng: 131.031 };
+// zoom should be a zoom level.  0 = whole earth, 4 = zoomed out very far.  15?
+async function initMap(element, position, zoom) {
+    const { Map } = await google.maps.importLibrary("maps");
+
+    //https://developers.google.com/maps/documentation/get-map-id
+    let map = new Map(element, {
+        zoom: zoom,
+        center: position,
+        styles: [{
+            featureType: 'poi',
+            stylers: [{ visibility: 'off' }]  // Turn off POI.
+        },
+        {
+            featureType: 'transit.station',
+            stylers: [{ visibility: 'off' }]  // Turn off bus, train stations etc.
+        }],
+        disableDoubleClickZoom: true,
+        streetViewControl: false,
+    });
+
+    element.map = map;
+}
+
+async function addMapOverlays(element, slug, gridLat, gridLng, latStep, lngStep) {
+    const { Marker } = await google.maps.importLibrary("marker")
+    fetch('/wp-admin/admin-ajax.php?action=lp_get_supporters_map_coordinates_json&lat_center=' + gridLat + '&lng_center=' + gridLng + '&lat_box_size=' + latStep + '&lng_box_size=' + lngStep)
+        .then(req => req.json())
+        .then(supporters => {
+            //console.log(supporters);
+            let squares = new Map();
+            supporters.forEach(supporter => {
+                let key = supporter.lat_box + ',' + supporter.lng_box;
+                let value = squares.get(key);
+                if (value === undefined) {
+                    let south = supporter.lat_box * latStep + gridLat;
+                    let north = south + latStep;
+                    let west = supporter.lng_box * lngStep + gridLng;
+                    let east = west + lngStep;
+                    squares.set(key, { count: 1, position: { north: north, south: south, east: east, west: west } });
+                }
+                else {
+                    value.count++;
+                }
+                if (supporter.lat !== undefined) {
+                    new Marker({ label: supporter.name, position: { lat: parseFloat(supporter.lat), lng: parseFloat(supporter.lng) }, map: element.map });
+                }
+            });
+            for (const square of squares.values()) {
+                let p = square.position;
+                const coords = [
+                    { lat: p.north, lng: p.east },
+                    { lat: p.south, lng: p.east },
+                    { lat: p.south, lng: p.west },
+                    { lat: p.north, lng: p.west },
+                ];
+                feature = element.map.data.add({ geometry: new google.maps.Data.Polygon([coords]) });
+                feature.setProperty('count', square.count);
+            }
+            element.map.data.setStyle(function (feature) {
+                var color = feature.getProperty('count') > 1 ? 'red' : 'blue';
+                return {
+                    fillColor: color,
+                    strokeWeight: 1
+                };
+            });
+        });
+}

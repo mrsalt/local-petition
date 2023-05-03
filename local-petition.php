@@ -28,6 +28,7 @@ define('LOCAL_PETITION_VERSION', '1.0.0');
 define('LP_PRODUCTION', get_cfg_var('environment') === 'production');
 define('reCAPTCHA_site_key', get_cfg_var('reCAPTCHA_site_key'));
 define('reCAPTCHA_secret', get_cfg_var('reCAPTCHA_secret'));
+define('google_maps_api_key', get_cfg_var('google_maps_api_key'));
 
 // Make sure we don't expose any info if called directly
 if (!function_exists('add_action')) {
@@ -64,8 +65,11 @@ add_shortcode('supporter_counter', 'lp_supporter_counter');
 add_shortcode('supporter_carousel', 'lp_supporter_carousel');
 
 // Register AJAX handlers
-add_action( 'wp_ajax_lp_get_supporters_json', 'lp_get_supporters_json_handler' );
-add_action( 'wp_ajax_nopriv_lp_get_supporters_json', 'lp_get_supporters_json_handler' );
+add_action('wp_ajax_lp_get_supporters_json', 'lp_get_supporters_json_handler');
+add_action('wp_ajax_nopriv_lp_get_supporters_json', 'lp_get_supporters_json_handler');
+add_action('wp_ajax_lp_get_supporters_map_coordinates_json', 'lp_get_supporters_map_coordinates_json_handler');
+add_action('wp_ajax_nopriv_lp_get_supporters_map_coordinates_json', 'lp_get_supporters_map_coordinates_json_handler');
+
 
 wp_enqueue_style('local_petition_style', plugins_url('css/local_petition.css', __FILE__), false, LOCAL_PETITION_VERSION);
 wp_enqueue_script('local_petition_js', plugins_url('js/local_petition.js', __FILE__), array(), LOCAL_PETITION_VERSION);

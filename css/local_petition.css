@@ -92,3 +92,8 @@ div.supporter-carousel .supporter-comments {
     margin-top: 10px;
     padding-top: 10px;
 }
+
+div.supporter-map {
+    height: 400px;
+    width: 100%;
+}
