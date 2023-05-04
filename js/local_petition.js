@@ -214,6 +214,47 @@ async function initMap(element, position, zoom) {
     element.map = map;
 }
 
+class Color {
+    constructor(r, g, b) {
+        this.r = r;
+        this.g = g;
+        this.b = b;
+    }
+
+    static blend(ratio, colorA, colorB) {
+        return new Color(
+            Math.floor((colorB.r - colorA.r) * ratio + colorA.r),
+            Math.floor((colorB.g - colorA.g) * ratio + colorA.g),
+            Math.floor((colorB.b - colorA.b) * ratio + colorA.b));
+    }
+
+    toCSS() {
+        return 'rgb(' + this.r + ',' + this.g + ',' + this.b + ')';
+    }
+}
+
+function addChartLegend(map, minPerSquare, minColor, maxPerSquare, maxColor) {
+    const legendControlDiv = document.createElement('div');
+    const gradientElement = document.createElement('span');
+    const gradientLabels = document.createElement('span');
+    const minValueElement = document.createElement('div');
+    const maxValueElement = document.createElement('div');
+    gradientLabels.appendChild(minValueElement);
+    gradientLabels.appendChild(maxValueElement);
+    legendControlDiv.appendChild(gradientElement);
+    legendControlDiv.appendChild(gradientLabels);
+    legendControlDiv.classList.add("lp-map-legend");
+    legendControlDiv.title = 'Number of Petition Signers Per Block';
+    gradientElement.classList.add("lp-gradient");
+    gradientLabels.classList.add("lp-gradient-labels");
+    maxValueElement.classList.add("lp-max-value");
+    minValueElement.classList.add("lp-min-value");
+    minValueElement.innerText = minPerSquare;
+    maxValueElement.innerText = maxPerSquare;
+    gradientElement.style.backgroundImage = 'linear-gradient(' + maxColor.toCSS() + ', ' + minColor.toCSS() + ')';
+    map.controls[google.maps.ControlPosition.LEFT_CENTER].push(legendControlDiv);
+}
+
 async function addMapOverlays(element, slug, gridLat, gridLng, latStep, lngStep) {
     const { Marker } = await google.maps.importLibrary("marker")
     fetch('/wp-admin/admin-ajax.php?action=lp_get_supporters_map_coordinates_json&lat_center=' + gridLat + '&lng_center=' + gridLng + '&lat_box_size=' + latStep + '&lng_box_size=' + lngStep)
@@ -238,6 +279,8 @@ async function addMapOverlays(element, slug, gridLat, gridLng, latStep, lngStep)
                     new Marker({ label: supporter.name, position: { lat: parseFloat(supporter.lat), lng: parseFloat(supporter.lng) }, map: element.map });
                 }
             });
+            let minPerSquare = 1;
+            let maxPerSquare = 1;
             for (const square of squares.values()) {
                 let p = square.position;
                 const coords = [
@@ -248,13 +291,18 @@ async function addMapOverlays(element, slug, gridLat, gridLng, latStep, lngStep)
                 ];
                 feature = element.map.data.add({ geometry: new google.maps.Data.Polygon([coords]) });
                 feature.setProperty('count', square.count);
+                if (square.count > maxPerSquare) maxPerSquare = square.count;
             }
+            let minColor = new Color(160, 50, 50);
+            let maxColor = new Color(50, 50, 160);
             element.map.data.setStyle(function (feature) {
-                var color = feature.getProperty('count') > 1 ? 'red' : 'blue';
+                if (minPerSquare === maxPerSquare) color = minColor.toCSS();
+                else color = Color.blend((feature.getProperty('count') - minPerSquare) / (maxPerSquare - minPerSquare), minColor, maxColor).toCSS();
                 return {
                     fillColor: color,
                     strokeWeight: 1
                 };
             });
+            addChartLegend(element.map, minPerSquare, minColor, maxPerSquare, maxColor);
         });
 }

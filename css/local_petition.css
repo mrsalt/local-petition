@@ -93,7 +93,45 @@ div.supporter-carousel .supporter-comments {
     padding-top: 10px;
 }
 
+/* map styles */
+
 div.supporter-map {
-    height: 400px;
+    height: 500px;
     width: 100%;
+}
+
+div.lp-map-legend {
+    margin-left: 10px;
+    width: 45px;
+    height: 100px;
+    padding: 7px;
+    background: white;
+    border: 1px solid lightgray;
+    cursor: pointer;
+}
+
+span.lp-gradient {
+    height: 100%;
+    width: 60%;
+    opacity: 50%;
+    display: inline-block;
+}
+
+span.lp-gradient-labels {
+    height: 100%;
+    width: 50%;
+    display: inline-block;
+    position: absolute;
+    top: 10px;
+    left: 70%;
+}
+
+div.lp-max-value {
+    position: relative;
+    top: -3px;
+}
+
+div.lp-min-value {
+    position: absolute;
+    bottom: 16px;
 }
