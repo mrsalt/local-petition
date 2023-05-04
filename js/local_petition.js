@@ -298,8 +298,8 @@ async function addMapOverlays(element, gridLat, gridLng, latStep, lngStep) {
                 lngTotal += square.count * (p.east + p.west) / 2;
             }
             element.map.setCenter({lat: latTotal / supporters.length, lng: lngTotal / supporters.length});
-            let minColor = new Color(160, 50, 50);
-            let maxColor = new Color(50, 50, 160);
+            let maxColor = new Color(160, 50, 50);
+            let minColor = new Color(50, 50, 160);
             element.map.data.setStyle(function (feature) {
                 if (minPerSquare === maxPerSquare) color = minColor.toCSS();
                 else color = Color.blend((feature.getProperty('count') - minPerSquare) / (maxPerSquare - minPerSquare), minColor, maxColor).toCSS();
