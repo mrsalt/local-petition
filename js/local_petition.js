@@ -255,7 +255,7 @@ function addChartLegend(map, minPerSquare, minColor, maxPerSquare, maxColor) {
     map.controls[google.maps.ControlPosition.LEFT_CENTER].push(legendControlDiv);
 }
 
-async function addMapOverlays(element, slug, gridLat, gridLng, latStep, lngStep) {
+async function addMapOverlays(element, gridLat, gridLng, latStep, lngStep) {
     const { Marker } = await google.maps.importLibrary("marker")
     fetch('/wp-admin/admin-ajax.php?action=lp_get_supporters_map_coordinates_json&lat_center=' + gridLat + '&lng_center=' + gridLng + '&lat_box_size=' + latStep + '&lng_box_size=' + lngStep)
         .then(req => req.json())
@@ -281,6 +281,8 @@ async function addMapOverlays(element, slug, gridLat, gridLng, latStep, lngStep)
             });
             let minPerSquare = 1;
             let maxPerSquare = 1;
+            let latTotal = 0;
+            let lngTotal = 0;
             for (const square of squares.values()) {
                 let p = square.position;
                 const coords = [
@@ -292,7 +294,10 @@ async function addMapOverlays(element, slug, gridLat, gridLng, latStep, lngStep)
                 feature = element.map.data.add({ geometry: new google.maps.Data.Polygon([coords]) });
                 feature.setProperty('count', square.count);
                 if (square.count > maxPerSquare) maxPerSquare = square.count;
+                latTotal += square.count * (p.north + p.south) / 2;
+                lngTotal += square.count * (p.east + p.west) / 2;
             }
+            element.map.setCenter({lat: latTotal / supporters.length, lng: lngTotal / supporters.length});
             let minColor = new Color(160, 50, 50);
             let maxColor = new Color(50, 50, 160);
             element.map.data.setStyle(function (feature) {

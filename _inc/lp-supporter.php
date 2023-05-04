@@ -15,7 +15,7 @@ function lp_supporter_map($atts = [], $content = null)
     list($gridLat, $gridLng) = explode(",", $atts['gridcenter']);
     list($latStep, $lngStep) = explode(",", $atts['gridstep']);
     $content .= '<script>initMap(document.getElementById(\'' . $id . '\'), { "lat": ' . $atts['lat'] . ', "lng": ' . $atts['lng'] . ' }, ' . $atts['zoom'] . ')' .
-        ".then(() => { addMapOverlays(document.getElementById('$id'), '" . $_SESSION['campaign']->slug . "', $gridLat, $gridLng, $latStep, $lngStep) });" .
+        ".then(() => { addMapOverlays(document.getElementById('$id'), $gridLat, $gridLng, $latStep, $lngStep) });" .
         '</script>' . "\n";
     return $content;
 }
