@@ -35,9 +35,6 @@ function loadSupporterBox(el, campaignSlug) {
             }
             arg = { current: 0, next: 1, data: json, element: el, campaignSlug: campaignSlug, mode: 'play' };
             updateSupporterBox.call(arg);
-            if (json.length > 1) {
-                arg.timerId = setInterval(moveToNextSupporter.bind(arg), 10000);
-            }
             let navControls = el.querySelector('.nav-controls');
             navControls.style.display = json.length > 1 ? '' : 'None';
             if (typeof jQuery == 'undefined')
@@ -62,6 +59,15 @@ function moveToPriorSupporter() {
     updateSupporterBox.call(this);
 }
 
+function getTimeToDisplay(person) {
+    let timeout = 3000;
+    if (person.comments)
+        timeout += 7 * person.comments.length;
+    if (person.photo_file)
+        timeout += 3000;
+    return timeout;
+}
+
 function updateSupporterBox() {
     let person = this.data[this.current];
     let photoElement = this.element.querySelector('.supporter-photo');
@@ -71,6 +77,9 @@ function updateSupporterBox() {
     this.element.querySelector('.supporter-comments').innerText = person.comments;
     this.preload = new Image();
     this.preload.src = getNextImageUrl.call(this);
+    if (this.data.length > 1 && this.mode === 'play') {
+        this.timerId = setTimeout(moveToNextSupporter.bind(this), getTimeToDisplay(person));
+    }
 }
 
 function getNextImageUrl() {
@@ -85,26 +94,22 @@ function getImageUrl(person) {
 }
 
 function clickNavControl() {
+    clearTimeout(this.timerId);
     if (event.target.id === 'previous' || event.target.id === 'next') {
-        clearInterval(this.timerId);
-        if (this.mode === 'play')
-            this.timerId = setInterval(moveToNextSupporter.bind(this), 10000);
-        if (event.target.id === 'previous')
+         if (event.target.id === 'previous')
             moveToPriorSupporter.call(this);
         else
             moveToNextSupporter.call(this);
-        updateSupporterBox.call(this);
     }
     else if (event.target.id === 'play_pause') {
         if (this.mode === 'play') {
             this.mode = 'pause';
             event.target.innerHTML = '&#x23F8;';
-            clearInterval(this.timerId);
         }
         else if (this.mode === 'pause') {
             this.mode = 'play';
             event.target.innerHTML = '&#x23EF;';
-            this.timerId = setInterval(moveToNextSupporter.bind(this), 10000);
+            this.timerId = setTimeout(moveToNextSupporter.bind(this), 5000);
         }
     }
 }
