@@ -242,6 +242,9 @@ function lp_attempt_submit($style, &$continue_form_render)
             $content .= '<p><label>Comments:<div class="comment-preview">' . $values['comments'] . '</div></label></p>';
             $content .= '<p><i>If you wish to change anything, press back and make changes.  You may also make changes in the future if you return to this page.</i></p>';
             $content .= '<p>Click this button to allow another individual to sign: <button type="button" onclick="location.href=\'' . get_permalink() . '\'">Sign Again</button></p>';
+            if ($values['is_supporter'] && $_SESSION['campaign']->post_sign_message) {
+                $content .= '<p>' . $_SESSION['campaign']->post_sign_message . '</p>';
+            }
             $content .= '</div>';
         }
     }
