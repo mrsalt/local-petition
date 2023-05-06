@@ -14,8 +14,9 @@ function lp_supporter_map($atts = [], $content = null)
     }
     list($gridLat, $gridLng) = explode(",", $atts['gridcenter']);
     list($latStep, $lngStep) = explode(",", $atts['gridstep']);
+    $minSupporters = array_key_exists('minsupporters', $atts) ? $atts['minsupporters'] : 'null';
     $content .= '<script>initMap(document.getElementById(\'' . $id . '\'), { "lat": ' . $atts['lat'] . ', "lng": ' . $atts['lng'] . ' }, ' . $atts['zoom'] . ')' .
-        ".then(() => { addMapOverlays(document.getElementById('$id'), $gridLat, $gridLng, $latStep, $lngStep) });" .
+        ".then(() => { addMapOverlays(document.getElementById('$id'), $gridLat, $gridLng, $latStep, $lngStep, $minSupporters) });" .
         '</script>' . "\n";
     return $content;
 }

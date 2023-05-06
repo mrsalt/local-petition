@@ -260,7 +260,7 @@ function addChartLegend(map, minPerSquare, minColor, maxPerSquare, maxColor) {
     map.controls[google.maps.ControlPosition.LEFT_CENTER].push(legendControlDiv);
 }
 
-async function addMapOverlays(element, gridLat, gridLng, latStep, lngStep) {
+async function addMapOverlays(element, gridLat, gridLng, latStep, lngStep, minSupporters) {
     const { Marker } = await google.maps.importLibrary("marker")
     fetch('/wp-admin/admin-ajax.php?action=lp_get_supporters_map_coordinates_json&lat_center=' + gridLat + '&lng_center=' + gridLng + '&lat_box_size=' + latStep + '&lng_box_size=' + lngStep)
         .then(req => req.json())
@@ -313,6 +313,7 @@ async function addMapOverlays(element, gridLat, gridLng, latStep, lngStep) {
                     strokeWeight: 1
                 };
             });
-            addChartLegend(element.map, minPerSquare, minColor, maxPerSquare, maxColor);
+            if (minSupporters === null || maxPerSquare >= minSupporters)
+                addChartLegend(element.map, minPerSquare, minColor, maxPerSquare, maxColor);
         });
 }
