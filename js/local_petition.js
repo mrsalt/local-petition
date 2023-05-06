@@ -317,3 +317,43 @@ async function addMapOverlays(element, gridLat, gridLng, latStep, lngStep, minSu
                 addChartLegend(element.map, minPerSquare, minColor, maxPerSquare, maxColor);
         });
 }
+
+function update_filter(filter, newValue) {
+    let search = {};
+    let qs = window.location.search.substring(1);
+    let found = false;
+    qs.split('&').forEach(component => {
+        let [key, value] = component.split('=');
+        key = decodeURIComponent(key);
+        key = key.replace('_', ' '); // Is wordpress replacing spaces with underscores?  We need to convert back to spaces.
+        if (key === filter) {
+            found = true;
+            if (newValue !== '<All>') {
+                search[key] = newValue;
+            }
+        }
+        else {
+            search[key] = decodeURIComponent(value);
+        }
+    });
+    if (!found) search[filter] = newValue;
+    let searchString = '';
+    let sep = '?';
+    for (const [key, value] of Object.entries(search)) {
+        searchString += sep + encodeURIComponent(key) + '=' + encodeURIComponent(value);
+        sep = '&';
+    }
+    window.location.href = window.location.origin + window.location.pathname + searchString;
+}
+
+function update_visible_columns(select) {
+    let Cookies2 = Cookies.noConflict();
+    let hidden_columns = [];
+    for (idx in select.children) {
+        console.log(select.children[idx].innerText);
+        if (!select.children[idx].selected)
+            hidden_columns.push(select.children[idx].innerText);
+    }
+    Cookies2.set('lp-hidden-columns', JSON.stringify(hidden_columns));
+    window.location.reload();
+}

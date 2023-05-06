@@ -135,3 +135,29 @@ div.lp-min-value {
     position: absolute;
     bottom: 16px;
 }
+
+/* admin styles */
+
+table.lp-table, th.lp-table-header, td.lp-table-data {
+    border: 1px solid gray;
+    padding: 4px;
+}
+
+table.lp-table {
+    border-collapse: collapse;
+    margin-top: 20px;
+    margin-right: 20px;
+}
+
+tr.lp-table-header-row {
+    background-color: #1a5551;
+    color: white;
+}
+
+tr.lp-even-row {
+    background-color: #b8e1de;
+}
+
+tr.lp-odd-row {
+    background-color: #9bd6d2;
+}

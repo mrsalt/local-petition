@@ -52,6 +52,11 @@ register_activation_hook(__FILE__, 'lp_db_install_data');
 // Since 3.1 the activation function registered with register_activation_hook() is not called when a plugin is updated:
 add_action('plugins_loaded', 'lp_db_install');
 
+// Register filters
+require_once('_inc/lp-menu-items.php');
+add_action( 'admin_bar_menu', 'lp_admin_bar_menu', 500 );
+add_action( 'admin_menu', 'lp_admin_menu' );
+
 // Register shortcodes
 require_once('_inc/lp-render-petition.php');
 add_shortcode('local_petition', 'lp_render_petition');
@@ -72,5 +77,6 @@ add_action('wp_ajax_nopriv_lp_get_supporters_map_coordinates_json', 'lp_get_supp
 
 
 wp_enqueue_style('local_petition_style', plugins_url('css/local_petition.css', __FILE__), false, LOCAL_PETITION_VERSION);
+wp_enqueue_script('jscookie', plugins_url('js/js.cookie.min.js', __FILE__), array(), '3.0.5');
 wp_enqueue_script('local_petition_js', plugins_url('js/local_petition.js', __FILE__), array(), LOCAL_PETITION_VERSION);
 wp_register_script('recaptcha', 'https://www.google.com/recaptcha/api.js?render=' . reCAPTCHA_site_key);
