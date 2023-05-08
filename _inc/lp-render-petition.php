@@ -115,6 +115,7 @@ function lp_attempt_submit($style, &$continue_form_render)
             $_POST['title'] = $signer->title;
             if ($signer->is_helper) $_POST['is_helper'] = true;
             if ($signer->share_granted) $_POST['is_share'] = true;
+            $_POST['age'] = $signer->age;
 
             //$content .= '<div>$_POST:<pre>' . var_export($_POST, true) . '</pre></div>';
         }
@@ -142,7 +143,8 @@ function lp_attempt_submit($style, &$continue_form_render)
             'comments'            => $_POST['comments'],
             'is_supporter'        => $_POST['is_supporter'] == 'true' ? 1 : 0,
             'share_granted'       => array_key_exists('is_share', $_POST) ? 1 : 0,
-            'is_helper'           => array_key_exists('is_helper', $_POST) ? 1 : 0
+            'is_helper'           => array_key_exists('is_helper', $_POST) ? 1 : 0,
+            'age'                 => $_POST['age']
         );
 
         $values = array_merge($_SESSION['lp_petition_step_1'], $step_2);
@@ -291,6 +293,11 @@ function lp_render_petition_form($style, $content, $step, $signer = null)
         $is_supporter = $_POST['is_supporter'] ?? 'true';
         $content .= '<label><input type="radio" name="is_supporter" value="true"' . ($is_supporter == 'true' ? ' checked' : '') . '> Yes, I\'m a supporter</label><br>';
         $content .= '<label><input type="radio" name="is_supporter" value="false"' . ($is_supporter == 'false' ? ' checked' : '') . '> No, I\'m not a supporter</input></label></p>';
+        $content .= '<p>What is your age?<br>';
+        $age = $_POST['age'] ?? null;
+        $content .= '<label><input type="radio" name="age" required="true" value="&lt; 13"' . ($age == '< 13' ? ' checked' : '') . '> &lt; 13</label><br>';
+        $content .= '<label><input type="radio" name="age" required="true" value="13 - 17"' . ($age == '13 - 17' ? ' checked' : '') . '> 13 - 17</input></label><br>';
+        $content .= '<label><input type="radio" name="age" required="true" value="18+"' . ($age == '18+' ? ' checked' : '') . '> 18+</input></label></p>';
         $content .= '<p>~~ Optional Information ~~</p>';
         $content .= '<p>' . get_textarea('Comments', 'comments', style: $style) . '</p>';
         if ($_SESSION['campaign']->comment_suggestion)

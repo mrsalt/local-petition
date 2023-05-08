@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.36';
+$lp_db_version = '1.37';
 
 function lp_db_install()
 {
@@ -63,6 +63,7 @@ function lp_db_install()
 		name varchar(50) NOT NULL,
 		address_id mediumint(9) NOT NULL,
 		original_address_id mediumint(9) NOT NULL,
+		age ENUM('< 13','13 - 17','18+'),
 		title varchar(70),
 		comments text,
 		photo_file varchar(50),

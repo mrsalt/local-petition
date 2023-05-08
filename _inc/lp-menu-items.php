@@ -128,7 +128,7 @@ function build_where($filters, $values = [])
         if (array_key_exists($wpkey, $values)) {
             if (strlen($where) > 0) $where .= ' AND ';
             $value = internal_value($key, $values[$wpkey]);
-            if (!intval($value)) $value = '\'' . $value . '\'';
+            if (!is_numeric($value)) $value = '\'' . $value . '\'';
             $where .= $field . ' = ' . $value;
         }
     }
@@ -142,19 +142,19 @@ function lp_review_signers()
 
     if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $users = array_keys($_POST['user-id']);
-        if (count($users) > 0) {
+        if (count($users) > 0 && $_POST['new_status'] !== 'Unreviewed') {
             $query = "UPDATE `$table_name` SET status = '" . $_POST['new_status'] . "', approved_id = " . wp_get_current_user()->ID . ' WHERE id IN (' . implode(',', $users) . ')';
             $wpdb->get_results($query);
         }
     }
 
-    $filters = ['CampaignStatus' => 'campaign.status', 'Campaign' => 'campaign.name', 'Status' => 'signer.status', 'Share Public' => 'signer.share_granted', 'Helper' => 'signer.is_helper', 'Supporter' => 'signer.is_supporter'];
+    $filters = ['CampaignStatus' => 'campaign.status', 'Campaign' => 'campaign.name', 'Status' => 'signer.status', 'Share Public' => 'signer.share_granted', 'Helper' => 'signer.is_helper', 'Supporter' => 'signer.is_supporter', 'Age' => 'signer.age'];
 
     $campaign_table = $wpdb->prefix . 'lp_campaign';
     $address_table = $wpdb->prefix . 'lp_address';
     $where = build_where($filters, ['CampaignStatus' => 'Active']);
     $query = "SELECT campaign.name 'Campaign', campaign.slug,
-                     signer.status 'Status', signer.created 'Created', signer.id 'ID', signer.name 'Name', signer.photo_file 'Photo', signer.title 'Title', signer.email 'Email', signer.phone 'Phone', signer.comments 'Comments', signer.share_granted 'Share Public', signer.is_helper 'Helper', signer.is_supporter 'Supporter',
+                     signer.status 'Status', signer.created 'Created', signer.id 'ID', signer.name 'Name', signer.age 'Age', signer.photo_file 'Photo', signer.title 'Title', signer.email 'Email', signer.phone 'Phone', signer.comments 'Comments', signer.share_granted 'Share Public', signer.is_helper 'Helper', signer.is_supporter 'Supporter',
                      address.line_1 'Line 1', address.line_2 'Line 2', address.city 'City', address.state 'State', address.neighborhood 'Neighborhood'
               FROM `$table_name` signer
               JOIN `$campaign_table` campaign ON campaign.id = signer.campaign_id
