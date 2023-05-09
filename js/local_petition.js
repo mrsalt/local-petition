@@ -267,6 +267,7 @@ async function addMapOverlays(element, gridLat, gridLng, latStep, lngStep, minSu
         .then(supporters => {
             //console.log(supporters);
             let squares = new Map();
+            let markers = {};
             supporters.forEach(supporter => {
                 let key = supporter.lat_box + ',' + supporter.lng_box;
                 let value = squares.get(key);
@@ -281,9 +282,25 @@ async function addMapOverlays(element, gridLat, gridLng, latStep, lngStep, minSu
                     value.count++;
                 }
                 if (supporter.lat !== undefined) {
-                    new Marker({ label: supporter.name, position: { lat: parseFloat(supporter.lat), lng: parseFloat(supporter.lng) }, map: element.map });
+                    let key = supporter.lat + ',' + supporter.lng;
+                    if (!markers.hasOwnProperty(key))
+                        markers[key] = { label: [supporter.name], position: { lat: parseFloat(supporter.lat), lng: parseFloat(supporter.lng) }, map: element.map };
+                    else
+                        markers[key]['label'].push(supporter.name);
                 }
             });
+            let markerList = [];
+            for (const key in markers) {
+                let m = markers[key];
+                if (m['label'].length > 1)
+                    m['label'] = '(' + m['label'].length + ') ' + m['label'].join(', ');
+                else
+                    m['label'] = m['label'][0];
+                markerList.push(new Marker(m));
+            }
+            if (markerList.length > 0) {
+                const markerCluster = new markerClusterer.MarkerClusterer({ map: element.map, markers: markerList });
+            }
             let minPerSquare = 1;
             let maxPerSquare = 1;
             let latTotal = 0;
