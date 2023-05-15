@@ -73,6 +73,7 @@ function add_submit_button_with_captcha($title)
 function get_input($label, $id, $required = false, $max_chars = false, $type = 'text', $style = 'label')
 {
     $value = array_key_exists($id, $_POST) ? esc_attr($_POST[$id]) : '';
+    if (strlen($value) == 0 && array_key_exists($id, $_SESSION)) $value = $_SESSION[$id];
     return ($style == 'label' ? '<label for="' . $id . '">' . $label . ': <br>' : '') //<span>*</span>
         . '<input id="' . $id . '"'
         . ' type="' . $type . '"'

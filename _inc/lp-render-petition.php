@@ -57,6 +57,14 @@ function lp_attempt_submit($style, &$continue_form_render)
         return $content;
     }
 
+    if (is_user_logged_in()) {
+        $_SESSION['is_proxy'] = array_key_exists('is_proxy', $_POST);
+        if ($_SESSION['is_proxy']) {
+            $_SESSION['proxy_id'] = $_POST['proxy_id'];
+            $_SESSION['proxy_date'] = $_POST['proxy_date'];
+        }
+    }
+
     //$content .= '<pre>$_POST = ' . var_export($_POST, true) . "\n".' $_SESSION = ' . var_export($_SESSION, true) . "\n" . '$_FILES = ' . var_export($_FILES, true) . '</pre>';
     if (!array_key_exists('lp_petition_step_1', $_SESSION) || !array_key_exists('title', $_POST)) {
         $email = array_key_exists('email', $_POST) ? $_POST['email'] : null;
@@ -173,6 +181,21 @@ function lp_attempt_submit($style, &$continue_form_render)
             if (!$signer) {
                 throw new Exception('Failed to upsert ' . $table_name);
             }
+            if (is_user_logged_in()) {
+                if ($_SESSION['is_proxy']) {
+                    $table_name = $wpdb->prefix . 'lp_proxy_signature';
+                    $result = $wpdb->insert($table_name, array(
+                        'campaign_id' => $_SESSION['campaign']->id,
+                        'entered_by' => $_SESSION['proxy_id'],
+                        'signer_id' => $signer->id,
+                        'wp_user_id' => wp_get_current_user()->ID,
+                        'sign_date' => $_SESSION['proxy_date']
+                    ));
+                    if ($result === false) {
+                        throw new Exception('Failed to insert into ' . $table_name);
+                    }
+                }
+            }
         }
 
         if (isset($_FILES['photo']) && $_FILES['photo']['tmp_name']) {
@@ -278,6 +301,9 @@ function lp_render_petition_form($style, $content, $step, $signer = null)
         $content .= '<p><i>This site is in debug/development mode</i></p>';
 
     $content .= '<form autocomplete="on" id="local-petition-form" class="petition" action="' . get_permalink() . '" method="post" enctype="multipart/form-data">';
+    if (is_user_logged_in()) {
+        $content .= add_bulk_sign_inputs($_SESSION['campaign']->id);
+    }
     if ($step == 1) {
         $content .= '<p>' . get_input('Name', 'signer_name', required: true, max_chars: 50, style: $style) . '</p>';
         $content .= '<p>' . get_input('Address Line 1', 'line_1', required: true, max_chars: 40, style: $style) . '</p>';
@@ -320,5 +346,35 @@ function lp_render_petition_form($style, $content, $step, $signer = null)
     $content .= add_submit_button_with_captcha($submit_title);
     $content .= '<input type="hidden" name="lp-petition-step" value="' . $step . '">';
     $content .= '</form>';
+    return $content;
+}
+
+function add_bulk_sign_inputs($campaign_id)
+{
+    $is_proxy = !array_key_exists('is_proxy', $_SESSION) || $_SESSION['is_proxy'];
+    $proxy_id = array_key_exists('proxy_id', $_SESSION) ? $_SESSION['proxy_id'] : null;
+    $proxy_date = array_key_exists('proxy_date', $_SESSION) ? $_SESSION['proxy_date'] : '';
+    $content = '<div style="border: 1px solid gray; padding: 20px">';
+    $content .= '<p><input type="checkbox" name="is_proxy"' . ($is_proxy ? 'checked' : '') . '> I am entering a signature for someone else</p>';
+    $content .= '<p><label>Signature Collector: ';
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'lp_signer';
+    $query = prepare_query("SELECT id, name FROM {$table_name} WHERE `campaign_id` = %s AND `is_helper` = 1", $campaign_id);
+    $results = $wpdb->get_results($query);
+    //$content .= '<pre>'.var_export($results, true).'</pre>';
+    $content .= '<select name="proxy_id" required="true">';
+    foreach ($results as $helper) {
+        $content .= '<option value="' . $helper->id . '"';
+        if ($helper->id == $proxy_id) $content .= ' selected';
+        $content .= '>' . $helper->name . '</option>';
+    }
+    $content .= '</select>';
+    $content .= '</p>';
+    $content .= '<p>Date Collected: <input type="text" name="proxy_date" required="true" placeholder="YYYY-MM-DD" value="' . $proxy_date . '">';
+    $content .= '</div>';
+    if (array_key_exists('city', $_POST)) {
+        $_SESSION['city'] = $_POST['city'];
+        $_SESSION['zip'] = $_POST['zip'];
+    }
     return $content;
 }

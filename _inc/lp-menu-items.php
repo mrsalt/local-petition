@@ -137,6 +137,11 @@ function build_where($filters, $values = [])
 
 function lp_review_signers()
 {
+    if (!is_user_logged_in()) {
+        echo 'You need to sign in to access this page.';
+        return;
+    }
+
     global $wpdb;
     $table_name = $wpdb->prefix . 'lp_signer';
 

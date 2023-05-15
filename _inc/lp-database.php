@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.37';
+$lp_db_version = '1.38';
 
 function lp_db_install()
 {
@@ -107,6 +107,17 @@ function lp_db_install()
 		email varchar(50),
 		comments text NOT NULL,
 		PRIMARY KEY  (id)
+	) $charset_collate;";
+	dbDelta($sql);
+
+	$table_name = $wpdb->prefix . 'lp_proxy_signature';
+	$sql = "CREATE TABLE $table_name (
+		created timestamp DEFAULT CURRENT_TIMESTAMP,
+		campaign_id mediumint(9) NOT NULL,
+		entered_by mediumint(9) NOT NULL,
+		signer_id mediumint(9) NOT NULL,
+		wp_user_id mediumint(9) NOT NULL,
+		sign_date date NOT NULL
 	) $charset_collate;";
 	dbDelta($sql);
 
