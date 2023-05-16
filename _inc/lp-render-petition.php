@@ -186,7 +186,7 @@ function lp_attempt_submit($style, &$continue_form_render)
                     $table_name = $wpdb->prefix . 'lp_proxy_signature';
                     $result = $wpdb->insert($table_name, array(
                         'campaign_id' => $_SESSION['campaign']->id,
-                        'entered_by' => $_SESSION['proxy_id'],
+                        'collected_by' => $_SESSION['proxy_id'],
                         'signer_id' => $signer->id,
                         'wp_user_id' => wp_get_current_user()->ID,
                         'sign_date' => $_SESSION['proxy_date']
