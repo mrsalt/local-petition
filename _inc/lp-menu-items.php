@@ -178,6 +178,16 @@ function lp_review_signers()
         return;
     }
 
+    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+        $users = array_keys($_POST['user-id']);
+        if (count($users) > 0 && $_POST['new_status'] !== 'Unreviewed') {
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'lp_signer';
+            $query = "UPDATE `$table_name` SET status = '" . $_POST['new_status'] . "', approved_id = " . wp_get_current_user()->ID . ' WHERE id IN (' . implode(',', $users) . ')';
+            $wpdb->get_results($query);
+        }
+    }
+
     $result = do_query(count_only: true);
     $total = intval($result[0]->Count);
     if ($total == 0) {
