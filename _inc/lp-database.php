@@ -114,7 +114,7 @@ function lp_db_install()
 	$sql = "CREATE TABLE $table_name (
 		created timestamp DEFAULT CURRENT_TIMESTAMP,
 		campaign_id mediumint(9) NOT NULL,
-		entered_by mediumint(9) NOT NULL,
+		collected_by mediumint(9) NOT NULL,
 		signer_id mediumint(9) NOT NULL,
 		wp_user_id mediumint(9) NOT NULL,
 		sign_date date NOT NULL

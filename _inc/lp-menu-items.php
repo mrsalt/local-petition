@@ -153,17 +153,23 @@ function lp_review_signers()
         }
     }
 
-    $filters = ['CampaignStatus' => 'campaign.status', 'Campaign' => 'campaign.name', 'Status' => 'signer.status', 'Share Public' => 'signer.share_granted', 'Helper' => 'signer.is_helper', 'Supporter' => 'signer.is_supporter', 'Age' => 'signer.age'];
+    $filters = ['CampaignStatus' => 'campaign.status', 'Campaign' => 'campaign.name', 'Status' => 'signer.status', 'Share Public' => 'signer.share_granted', 'Helper' => 'signer.is_helper', 'Supporter' => 'signer.is_supporter', 'Age' => 'signer.age', 'Collected By' => 'signer_proxy.name', 'Entered By' => 'users.display_name'];
 
     $campaign_table = $wpdb->prefix . 'lp_campaign';
     $address_table = $wpdb->prefix . 'lp_address';
+    $proxy_table = $wpdb->prefix . 'lp_proxy_signature';
+    $wp_user_table = $wpdb->prefix . 'users';
     $where = build_where($filters, ['CampaignStatus' => 'Active']);
     $query = "SELECT campaign.name 'Campaign', campaign.slug,
                      signer.status 'Status', signer.created 'Created', signer.id 'ID', signer.name 'Name', signer.age 'Age', signer.photo_file 'Photo', signer.title 'Title', signer.email 'Email', signer.phone 'Phone', signer.comments 'Comments', signer.share_granted 'Share Public', signer.is_helper 'Helper', signer.is_supporter 'Supporter',
-                     address.line_1 'Line 1', address.line_2 'Line 2', address.city 'City', address.state 'State', address.neighborhood 'Neighborhood'
+                     address.line_1 'Line 1', address.line_2 'Line 2', address.city 'City', address.state 'State', address.neighborhood 'Neighborhood',
+                     signer_proxy.name 'Collected By', users.display_name 'Entered By'
               FROM `$table_name` signer
               JOIN `$campaign_table` campaign ON campaign.id = signer.campaign_id
               JOIN `$address_table` address ON address.id = signer.address_id
+              LEFT JOIN `$proxy_table` proxy ON proxy.signer_id = signer.id AND proxy.campaign_id = campaign.id
+              LEFT JOIN `$table_name` signer_proxy ON signer_proxy.id = proxy.collected_by
+              LEFT JOIN `$wp_user_table` users ON users.id = proxy.wp_user_id
               WHERE $where";
 
     //echo "<pre>$query</pre>";
