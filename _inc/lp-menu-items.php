@@ -135,6 +135,42 @@ function build_where($filters, $values = [])
     return $where;
 }
 
+function do_query($limit = null, $offset = 0, $count_only = false)
+{
+    global $wpdb;
+
+    $filters = ['CampaignStatus' => 'campaign.status', 'Campaign' => 'campaign.name', 'Status' => 'signer.status', 'Share Public' => 'signer.share_granted', 'Helper' => 'signer.is_helper', 'Supporter' => 'signer.is_supporter', 'Age' => 'signer.age', 'Collected By' => 'signer_proxy.name', 'Entered By' => 'users.display_name'];
+
+    $table_name = $wpdb->prefix . 'lp_signer';
+    $campaign_table = $wpdb->prefix . 'lp_campaign';
+    $address_table = $wpdb->prefix . 'lp_address';
+    $proxy_table = $wpdb->prefix . 'lp_proxy_signature';
+    $wp_user_table = $wpdb->prefix . 'users';
+    $where = build_where($filters, ['CampaignStatus' => 'Active']);
+    $query = "SELECT ";
+    if ($count_only) {
+        $query .= "COUNT(*) 'Count' ";
+    } else {
+        $query .= "campaign.name 'Campaign', campaign.slug,
+                     signer.status 'Status', signer.created 'Created', signer.id 'ID', signer.name 'Name', signer.age 'Age', signer.photo_file 'Photo', signer.title 'Title', signer.email 'Email', signer.phone 'Phone', signer.comments 'Comments', signer.share_granted 'Share Public', signer.is_helper 'Helper', signer.is_supporter 'Supporter',
+                     address.line_1 'Line 1', address.line_2 'Line 2', address.city 'City', address.state 'State', address.neighborhood 'Neighborhood',
+                     signer_proxy.name 'Collected By', users.display_name 'Entered By' ";
+    }
+    $query .= "FROM `$table_name` signer
+              JOIN `$campaign_table` campaign ON campaign.id = signer.campaign_id
+              JOIN `$address_table` address ON address.id = signer.address_id
+              LEFT JOIN `$proxy_table` `proxy` ON `proxy`.signer_id = signer.id AND `proxy`.campaign_id = campaign.id
+              LEFT JOIN `$table_name` signer_proxy ON signer_proxy.id = `proxy`.collected_by
+              LEFT JOIN `$wp_user_table` users ON users.id = `proxy`.wp_user_id
+              WHERE $where";
+    if (!$count_only && $limit !== null) {
+        $query .= " LIMIT $limit OFFSET $offset";
+    }
+
+    //echo "<pre>$query</pre>";
+    return $wpdb->get_results($query, $count_only ? OBJECT : ARRAY_A);
+}
+
 function lp_review_signers()
 {
     if (!is_user_logged_in()) {
@@ -142,52 +178,22 @@ function lp_review_signers()
         return;
     }
 
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'lp_signer';
-
-    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-        $users = array_keys($_POST['user-id']);
-        if (count($users) > 0 && $_POST['new_status'] !== 'Unreviewed') {
-            $query = "UPDATE `$table_name` SET status = '" . $_POST['new_status'] . "', approved_id = " . wp_get_current_user()->ID . ' WHERE id IN (' . implode(',', $users) . ')';
-            $wpdb->get_results($query);
-        }
-    }
-
-    $filters = ['CampaignStatus' => 'campaign.status', 'Campaign' => 'campaign.name', 'Status' => 'signer.status', 'Share Public' => 'signer.share_granted', 'Helper' => 'signer.is_helper', 'Supporter' => 'signer.is_supporter', 'Age' => 'signer.age', 'Collected By' => 'signer_proxy.name', 'Entered By' => 'users.display_name'];
-
-    $campaign_table = $wpdb->prefix . 'lp_campaign';
-    $address_table = $wpdb->prefix . 'lp_address';
-    $proxy_table = $wpdb->prefix . 'lp_proxy_signature';
-    $wp_user_table = $wpdb->prefix . 'users';
-    $where = build_where($filters, ['CampaignStatus' => 'Active']);
-    $query = "SELECT campaign.name 'Campaign', campaign.slug,
-                     signer.status 'Status', signer.created 'Created', signer.id 'ID', signer.name 'Name', signer.age 'Age', signer.photo_file 'Photo', signer.title 'Title', signer.email 'Email', signer.phone 'Phone', signer.comments 'Comments', signer.share_granted 'Share Public', signer.is_helper 'Helper', signer.is_supporter 'Supporter',
-                     address.line_1 'Line 1', address.line_2 'Line 2', address.city 'City', address.state 'State', address.neighborhood 'Neighborhood',
-                     signer_proxy.name 'Collected By', users.display_name 'Entered By'
-              FROM `$table_name` signer
-              JOIN `$campaign_table` campaign ON campaign.id = signer.campaign_id
-              JOIN `$address_table` address ON address.id = signer.address_id
-              LEFT JOIN `$proxy_table` proxy ON proxy.signer_id = signer.id AND proxy.campaign_id = campaign.id
-              LEFT JOIN `$table_name` signer_proxy ON signer_proxy.id = proxy.collected_by
-              LEFT JOIN `$wp_user_table` users ON users.id = proxy.wp_user_id
-              WHERE $where";
-
-    //echo "<pre>$query</pre>";
-    $result = $wpdb->get_results($query, ARRAY_A);
-    //echo '<pre>';
-    //var_export($result);
-    //echo '</pre>';
-    if (count($result) == 0) {
+    $result = do_query(count_only: true);
+    $total = intval($result[0]->Count);
+    if ($total == 0) {
         echo '<br><p>There are no users that match the current criteria.</p>';
         return;
     }
+    $limit = array_key_exists('limit', $_GET) ? $_GET['limit'] : 25;
+    $offset = array_key_exists('offset', $_GET) ? intval($_GET['offset']) : 0;
+    $result = do_query($limit, $offset, count_only: false);
 
     $unique_values = ['Created', 'Name', 'Photo', 'Title', 'Email', 'Phone', 'Comments', 'Line 1', 'Line 2'];
     $hidden_columns = ['slug', 'ID'];
     $header_output = false;
     $count = 0;
     echo '<form method="post">';
-    foreach ($result as $index => $values) {
+    foreach ($result as $values) {
         if (!$header_output) {
             echo build_filters($result, $unique_values, $hidden_columns);
             echo '<table class="lp-table">';
@@ -231,4 +237,17 @@ function lp_review_signers()
     echo ' ';
     echo '<input type="submit">';
     echo '</form>';
+    echo '<div>' . $total . ' results</div>';
+    echo '<div>Page ';
+    for ($page = 0; $page * $limit < $total; $page++) {
+        $o = $page * $limit;
+        echo '&nbsp;&nbsp;';
+        if ($offset == $o) {
+            echo '<b>' . ($page + 1) . '</b>';
+        } else {
+            $query = http_build_query(array_merge($_GET, array('offset' => $o)));
+            echo '<a href="?' . $query . '">' . ($page + 1) . '</a>';
+        }
+    }
+    echo '</div>';
 }
