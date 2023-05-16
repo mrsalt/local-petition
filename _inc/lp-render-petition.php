@@ -320,7 +320,7 @@ function lp_render_petition_form($style, $content, $step, $signer = null)
         $content .= '<label><input type="radio" name="is_supporter" value="true"' . ($is_supporter == 'true' ? ' checked' : '') . '> Yes, I\'m a supporter</label><br>';
         $content .= '<label><input type="radio" name="is_supporter" value="false"' . ($is_supporter == 'false' ? ' checked' : '') . '> No, I\'m not a supporter</input></label></p>';
         $content .= '<p>What is your age?<br>';
-        $age = $_POST['age'] ?? null;
+        $age = $_POST['age'] ?? (is_user_logged_in() ? '18+' : null);
         $content .= '<label><input type="radio" name="age" required="true" value="&lt; 13"' . ($age == '< 13' ? ' checked' : '') . '> &lt; 13</label><br>';
         $content .= '<label><input type="radio" name="age" required="true" value="13 - 17"' . ($age == '13 - 17' ? ' checked' : '') . '> 13 - 17</input></label><br>';
         $content .= '<label><input type="radio" name="age" required="true" value="18+"' . ($age == '18+' ? ' checked' : '') . '> 18+</input></label></p>';
