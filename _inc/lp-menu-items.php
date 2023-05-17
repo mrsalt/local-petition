@@ -152,7 +152,7 @@ function do_query($limit = null, $offset = 0, $count_only = false)
         $query .= "COUNT(*) 'Count' ";
     } else {
         $query .= "campaign.name 'Campaign', campaign.slug,
-                     signer.status 'Status', signer.created 'Created', signer.id 'ID', signer.name 'Name', signer.age 'Age', signer.photo_file 'Photo', signer.title 'Title', signer.email 'Email', signer.phone 'Phone', signer.comments 'Comments', signer.share_granted 'Share Public', signer.is_helper 'Helper', signer.is_supporter 'Supporter',
+                     signer.id 'ID', signer.status 'Status', signer.created 'Created', signer.name 'Name', signer.age 'Age', signer.photo_file 'Photo', signer.title 'Title', signer.email 'Email', signer.phone 'Phone', signer.comments 'Comments', signer.share_granted 'Share Public', signer.is_helper 'Helper', signer.is_supporter 'Supporter',
                      address.line_1 'Line 1', address.line_2 'Line 2', address.city 'City', address.state 'State', address.neighborhood 'Neighborhood',
                      signer_proxy.name 'Collected By', users.display_name 'Entered By' ";
     }
@@ -198,8 +198,8 @@ function lp_review_signers()
     $offset = array_key_exists('offset', $_GET) ? intval($_GET['offset']) : 0;
     $result = do_query($limit, $offset, count_only: false);
 
-    $unique_values = ['Created', 'Name', 'Photo', 'Title', 'Email', 'Phone', 'Comments', 'Line 1', 'Line 2'];
-    $hidden_columns = ['slug', 'ID'];
+    $unique_values = ['ID', 'Created', 'Name', 'Photo', 'Title', 'Email', 'Phone', 'Comments', 'Line 1', 'Line 2'];
+    $hidden_columns = ['slug'];
     $header_output = false;
     $count = 0;
     echo '<form method="post">';
@@ -210,7 +210,6 @@ function lp_review_signers()
             echo '<tr class="lp-table-header-row">';
             echo '<th></th>';
             foreach ($values as $key => $value) {
-                if ($key == 'slug' || $key == 'ID') continue;
                 if (in_array($key, $hidden_columns)) continue;
                 echo '<th class="lp-table-header">' . esc_html($key) . '</th>';
             }
