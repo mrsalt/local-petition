@@ -79,5 +79,6 @@ add_action('wp_ajax_nopriv_lp_get_supporters_map_coordinates_json', 'lp_get_supp
 wp_enqueue_style('local_petition_style', plugins_url('css/local_petition.css', __FILE__), false, LOCAL_PETITION_VERSION);
 wp_enqueue_script('jscookie', plugins_url('js/js.cookie.min.js', __FILE__), array(), '3.0.5');
 wp_enqueue_script('local_petition_js', plugins_url('js/local_petition.js', __FILE__), array(), LOCAL_PETITION_VERSION);
+wp_enqueue_script('local_petition_maps', plugins_url('js/local_petition_maps.js', __FILE__), array(), LOCAL_PETITION_VERSION);
 wp_register_script('recaptcha', 'https://www.google.com/recaptcha/api.js?render=' . reCAPTCHA_site_key);
 wp_register_script('markerclusterer', 'https://unpkg.com/@googlemaps/markerclusterer/dist/index.min.js');
