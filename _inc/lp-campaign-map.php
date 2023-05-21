@@ -4,15 +4,22 @@ require_once('googlemaps.php');
 
 function lp_campaign_map($atts = [], $content = null)
 {
-    if ( !is_user_logged_in() ) {
+    if (!is_user_logged_in()) {
         auth_redirect();
     }
-    $id = lp_get_map_id();
-    $extra_script = ".then(() => { addMapSupporterOverlays(document.getElementById('$id')) })";
+    $id = 'campaign-map';
+    $extra_script = ".then(() => { addMapSupporterOverlays(document.getElementById('$id')) })" .
+        ".then(() => { addMapRoutes(document.getElementById('$id')) })";
     return lp_create_map_element($id, 'campaign-map', true, $atts['lat'], $atts['lng'], $atts['zoom'], $extra_script);
 }
 
-function lp_get_campaign_routes_json_handler()
+function lp_campaign_routes($atts = [], $content = null)
+{
+    // Return a list of routes.
+    // If an editor, include ability to add route.
+}
+
+function lp_get_map_routes_json_handler()
 {
     if (!array_key_exists('campaign', $_SESSION)) {
         wp_send_json(array('error' => 'No campaign found in $_SESSION'), 500);

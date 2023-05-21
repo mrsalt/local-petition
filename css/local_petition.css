@@ -136,6 +136,11 @@ div.lp-min-value {
     bottom: 16px;
 }
 
+div.campaign-map {
+    height: 800px;
+    width: 100%;
+}
+
 /* admin styles */
 
 table.lp-table, th.lp-table-header, td.lp-table-data {

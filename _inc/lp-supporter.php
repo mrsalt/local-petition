@@ -22,25 +22,32 @@ function lp_get_supporters_map_coordinates_json_handler()
     global $wpdb;
     $table_name = $wpdb->prefix . 'lp_signer';
     $address_table = $wpdb->prefix . 'lp_address';
-    $lat_center = $_GET['lat_center'];
-    $lng_center = $_GET['lng_center'];
-    $lat_box_size = $_GET['lat_box_size'];
-    $lng_box_size = $_GET['lng_box_size'];
-    $extra_details = is_user_logged_in() ? 'signer.id, name, address.latitude AS lat, address.longitude AS lng,' : '';
-    $query = "SELECT $extra_details
-              FLOOR((address.latitude - %f) / %f) AS lat_box
-            , FLOOR((address.longitude - %f) / %f) AS lng_box
-            FROM `$table_name` signer
-            JOIN `$address_table` address ON address.id = signer.address_id WHERE signer.is_supporter = 1 AND signer.campaign_id = %d";
-    $query = $wpdb->prepare(
-        $query,
-        $lat_center,
-        $lat_box_size,
-        $lng_center,
-        $lng_box_size,
-        $_SESSION['campaign']->id
-    );
-
+    $extra_details = is_user_logged_in() ? 'signer.id, name, address.latitude AS lat, address.longitude AS lng' : '';
+    if ($_GET['lat_center'] !== 'undefined' && $_GET['lat_box_size'] !== 'undefined') {
+        $extra_details .= ',';
+        $query = "SELECT $extra_details
+                FLOOR((address.latitude - %f) / %f) AS lat_box
+                , FLOOR((address.longitude - %f) / %f) AS lng_box
+                FROM `$table_name` signer
+                JOIN `$address_table` address ON address.id = signer.address_id WHERE signer.is_supporter = 1 AND signer.campaign_id = %d";
+        $query = $wpdb->prepare(
+            $query,
+            $_GET['lat_center'],
+            $_GET['lat_box_size'],
+            $_GET['lng_center'],
+            $_GET['lng_box_size'],
+            $_SESSION['campaign']->id
+        );
+    }
+    else if ($extra_details) {
+        $query = "SELECT $extra_details
+                FROM `$table_name` signer
+                JOIN `$address_table` address ON address.id = signer.address_id WHERE signer.is_supporter = 1 AND signer.campaign_id = %d";
+        $query = $wpdb->prepare(
+            $query,
+            $_SESSION['campaign']->id
+        );
+    }
     $result = $wpdb->get_results($query, ARRAY_A);
     wp_send_json($result);
     wp_die();

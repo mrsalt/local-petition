@@ -66,7 +66,8 @@ function addChartLegend(map, minPerSquare, minColor, maxPerSquare, maxColor) {
 
 async function addMapSupporterOverlays(element, gridLat = undefined, gridLng = undefined, latStep = undefined, lngStep = undefined, minSupporters = undefined) {
     const { Marker } = await google.maps.importLibrary("marker")
-    fetch('/wp-admin/admin-ajax.php?action=lp_get_supporters_map_coordinates_json&lat_center=' + gridLat + '&lng_center=' + gridLng + '&lat_box_size=' + latStep + '&lng_box_size=' + lngStep)
+    let url = '/wp-admin/admin-ajax.php?action=lp_get_supporters_map_coordinates_json&lat_center=' + gridLat + '&lng_center=' + gridLng + '&lat_box_size=' + latStep + '&lng_box_size=' + lngStep;
+    fetch(url)
         .then(req => req.json())
         .then(supporters => {
             //console.log(supporters);
@@ -90,7 +91,7 @@ async function addMapSupporterOverlays(element, gridLat = undefined, gridLng = u
                 if (supporter.lat !== undefined) {
                     let key = supporter.lat + ',' + supporter.lng;
                     if (!markers.hasOwnProperty(key)) {
-                        markers[key] = { position: { lat: parseFloat(supporter.lat), lng: parseFloat(supporter.lng) }, map: element.map };                        
+                        markers[key] = { position: { lat: parseFloat(supporter.lat), lng: parseFloat(supporter.lng) }, map: element.map };
                     }
                     if (supporter.hasOwnProperty('name')) {
                         if (!markers[key].hasOwnProperty('label'))
@@ -154,26 +155,31 @@ function drawSupporterGrid(squares, element, supporters, minSupporters) {
         addChartLegend(element.map, minPerSquare, minColor, maxPerSquare, maxColor);
 }
 
-/*
-async function addMapRoutes(element, gridLat, gridLng, latStep, lngStep, minSupporters) {
+async function addMapRoutes(element) {
     const { Drawing } = await google.maps.importLibrary("drawing")
-    fetch('/wp-admin/admin-ajax.php?action=lp_get_supporters_map_coordinates_json&lat_center=' + gridLat + '&lng_center=' + gridLng + '&lat_box_size=' + latStep + '&lng_box_size=' + lngStep)
+
+    fetch('/wp-admin/admin-ajax.php?action=lp_get_map_routes')
         .then(req => req.json())
-        .then(supporters => {
+        .then(routeInfo => {
             //console.log(supporters);
-            element.map.setCenter({lat: latTotal / supporters.length, lng: lngTotal / supporters.length});
-            let maxColor = new Color(160, 50, 50);
-            let minColor = new Color(50, 50, 160);
-            element.map.data.setStyle(function (feature) {
-                if (minPerSquare === maxPerSquare) color = minColor.toCSS();
-                else color = Color.blend((feature.getProperty('count') - minPerSquare) / (maxPerSquare - minPerSquare), minColor, maxColor).toCSS();
-                return {
-                    fillColor: color,
-                    strokeWeight: 1
-                };
+            let centerString = localStorage.getItem(element.id + '-center');
+            if (centerString) {
+                console.log('restoring map location');
+                element.map.setCenter(JSON.parse(centerString));
+            }
+        })
+        .then(() => {
+            element.map.addListener("center_changed", () => {
+                if (element.centerUpdateHandler) clearTimeout(element.centerUpdateHandler);
+                element.centerUpdateHandler = setTimeout(() => {
+                    let centerString = JSON.stringify(element.map.getCenter());
+                    console.log(centerString);
+                    localStorage.setItem(element.id + '-center', centerString);
+                    delete element.centerUpdateHandler;
+                }, 1000);
             });
-            if (minSupporters === null || maxPerSquare >= minSupporters)
-                addChartLegend(element.map, minPerSquare, minColor, maxPerSquare, maxColor);
+            element.map.addListener('click', e => {
+                console.log('Map was clicked: ' + e);
+            });
         });
 }
-*/

@@ -69,11 +69,17 @@ add_shortcode('supporter_map', 'lp_supporter_map');
 add_shortcode('supporter_counter', 'lp_supporter_counter');
 add_shortcode('supporter_carousel', 'lp_supporter_carousel');
 
+require_once('_inc/lp-campaign-map.php');
+add_shortcode('campaign_map', 'lp_campaign_map');
+add_shortcode('campaign_routes', 'lp_campaign_routes');
+
 // Register AJAX handlers
 add_action('wp_ajax_lp_get_supporters_json', 'lp_get_supporters_json_handler');
 add_action('wp_ajax_nopriv_lp_get_supporters_json', 'lp_get_supporters_json_handler');
 add_action('wp_ajax_lp_get_supporters_map_coordinates_json', 'lp_get_supporters_map_coordinates_json_handler');
 add_action('wp_ajax_nopriv_lp_get_supporters_map_coordinates_json', 'lp_get_supporters_map_coordinates_json_handler');
+add_action('wp_ajax_lp_get_map_routes', 'lp_get_map_routes_json_handler');
+add_action('wp_ajax_nopriv_lp_get_map_routes', 'lp_get_map_routes_json_handler');
 
 
 wp_enqueue_style('local_petition_style', plugins_url('css/local_petition.css', __FILE__), false, LOCAL_PETITION_VERSION);
