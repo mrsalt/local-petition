@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.38';
+$lp_db_version = '1.40';
 
 function lp_db_install()
 {
@@ -118,6 +118,26 @@ function lp_db_install()
 		signer_id mediumint(9) NOT NULL,
 		wp_user_id mediumint(9) NOT NULL,
 		sign_date date NOT NULL
+	) $charset_collate;";
+	dbDelta($sql);
+
+	$table_name = $wpdb->prefix . 'lp_route';
+	$sql = "CREATE TABLE $table_name (
+		id mediumint(9) NOT NULL AUTO_INCREMENT,
+		created timestamp DEFAULT CURRENT_TIMESTAMP,
+		campaign_id mediumint(9) NOT NULL,
+		created_by_wp_user_id mediumint(9) NOT NULL,
+		assigned_to_wp_user_id mediumint(9) NULL,
+		assigned_date timestamp NULL,
+		number_residences smallint(3) NOT NULL,
+		neighborhood varchar(50),
+		bounds text NOT NULL,
+		east decimal(10,7),
+		west decimal(10,7),
+		north decimal(10,7),
+		south decimal(10,7),
+		status ENUM ('Unassigned','In Progress','Complete') NOT NULL DEFAULT 'Unassigned',
+		PRIMARY KEY  (id)
 	) $charset_collate;";
 	dbDelta($sql);
 

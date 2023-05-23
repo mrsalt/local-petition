@@ -141,6 +141,10 @@ div.campaign-map {
     width: 100%;
 }
 
+div.dynamic-prompt > * {
+    margin: 5px;
+}
+
 /* admin styles */
 
 table.lp-table, th.lp-table-header, td.lp-table-data {

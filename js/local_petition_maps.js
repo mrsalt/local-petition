@@ -155,18 +155,45 @@ function drawSupporterGrid(squares, element, supporters, minSupporters) {
         addChartLegend(element.map, minPerSquare, minColor, maxPerSquare, maxColor);
 }
 
-async function addMapRoutes(element) {
-    const { Drawing } = await google.maps.importLibrary("drawing")
+var managerOptions;
+var routeInProgress = {};
 
+async function addMapRoutes(element) {
+    const { Drawing } = await google.maps.importLibrary("drawing");
+    managerOptions = {
+        drawingMode: null,
+        drawingControl: false,
+        drawingControlOptions: {
+            position: google.maps.ControlPosition.TOP_CENTER,
+            drawingModes: [
+                //google.maps.drawing.OverlayType.MARKER,
+                //google.maps.drawing.OverlayType.CIRCLE,
+                google.maps.drawing.OverlayType.POLYGON,
+                //google.maps.drawing.OverlayType.POLYLINE,
+                //google.maps.drawing.OverlayType.RECTANGLE,
+            ],
+        },
+        //markerOptions: {
+        //  icon: "https://developers.google.com/maps/documentation/javascript/examples/full/images/beachflag.png",
+        //},
+        /*circleOptions: {
+          fillColor: "#ffff00",
+          fillOpacity: 1,
+          strokeWeight: 5,
+          clickable: false,
+          editable: true,
+          zIndex: 1,
+        },*/
+    };
     fetch('/wp-admin/admin-ajax.php?action=lp_get_map_routes')
         .then(req => req.json())
         .then(routeInfo => {
-            //console.log(supporters);
             let centerString = localStorage.getItem(element.id + '-center');
             if (centerString) {
                 console.log('restoring map location');
                 element.map.setCenter(JSON.parse(centerString));
             }
+            drawRoutes(element.map, routeInfo);
         })
         .then(() => {
             element.map.addListener("center_changed", () => {
@@ -178,8 +205,89 @@ async function addMapRoutes(element) {
                     delete element.centerUpdateHandler;
                 }, 1000);
             });
-            element.map.addListener('click', e => {
-                console.log('Map was clicked: ' + e);
+            const drawingManager = new google.maps.drawing.DrawingManager(managerOptions);
+            drawingManager.setMap(element.map);
+            element.drawingManager = drawingManager;
+
+            google.maps.event.addListener(drawingManager, 'polygoncomplete', function (polygon) {
+                if (routeInProgress.hasOwnProperty('okButton'))
+                    routeInProgress.okButton.disabled = false;
+                routeInProgress.polygon = polygon;
+                routeInProgress.path = JSON.stringify(polygon.getPath().getArray());
             });
         });
+}
+
+function beginAddingRoute(element) {
+    let addRouteButton = this;
+    this.disabled = true;
+    managerOptions.drawingControl = true;
+    managerOptions.drawingMode = google.maps.drawing.OverlayType.POLYGON;
+    element.drawingManager.setOptions(managerOptions);
+
+    let container = document.createElement('div');
+    container.classList.add('dynamic-prompt');
+
+    let resetState = function (e) {
+        managerOptions.drawingControl = false;
+        managerOptions.drawingMode = null;
+        element.drawingManager.setOptions(managerOptions);
+        addRouteButton.disabled = false;
+        container.parentElement.removeChild(container);
+        routeInProgress.polygon.setMap(null);
+        delete routeInProgress.polygon;
+        e.stopPropagation();
+    }
+
+    let residenceInput = document.createElement('input');
+    residenceInput.placeholder = 'Number of residences';
+    residenceInput.type = 'number';
+
+    let neighborhoodInput = document.createElement('input');
+    neighborhoodInput.placeholder = 'Neighborhood';
+    neighborhoodInput.type = 'text';
+
+    let okButton = document.createElement('button');
+    okButton.innerText = 'Save';
+    okButton.disabled = !routeInProgress.hasOwnProperty('polygon');
+    okButton.addEventListener('click', (e) => {
+        if (!residenceInput.valueAsNumber) {
+            alert('Enter the number of residences inside the region');
+            residenceInput.focus();
+            e.stopImmediatePropagation();
+            return;
+        }
+        let url = '/wp-admin/admin-ajax.php?action=lp_add_route&neighborhood=' + encodeURIComponent(neighborhoodInput.value) + '&residences=' + residenceInput.valueAsNumber + '&bounds=' + encodeURIComponent(routeInProgress.path);
+        fetch(url)
+            .then(req => req.json())
+            .then(routeInfo => {
+                drawRoutes(element.map, routeInfo);
+            });
+        resetState(e);
+    });
+    let cancelButton = document.createElement('button');
+    cancelButton.innerText = 'Cancel';
+    cancelButton.addEventListener('click', resetState);
+
+    container.appendChild(residenceInput);
+    container.appendChild(neighborhoodInput);
+    container.appendChild(okButton);
+    container.appendChild(cancelButton);
+    this.parentElement.appendChild(container);
+
+    routeInProgress.okButton = okButton;
+}
+
+async function drawRoutes(map, routes) {
+    const {Polygon} = await google.maps.importLibrary("maps")
+    for (const route of routes) {
+        var fillColor;
+        switch (route.status) {
+            case 'Unassigned': fillColor = 'red'; break;
+            case 'In Progress': fillColor = 'blue'; break;
+            case 'Complete': fillColor = 'gray'; break;
+        }
+        let options = {fillColor: fillColor, fillOpacity: 0.3, map: map, paths: JSON.parse(route.bounds), strokeColor: fillColor, strokeOpacity: 0.8};
+        let polygon = new google.maps.Polygon(options);
+    }
 }
