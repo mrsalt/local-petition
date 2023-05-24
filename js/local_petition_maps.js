@@ -157,6 +157,7 @@ function drawSupporterGrid(squares, element, supporters, minSupporters) {
 
 var managerOptions;
 var routeInProgress = {};
+var routeData = { containers: [] };
 
 async function addMapRoutes(element) {
     const { Drawing } = await google.maps.importLibrary("drawing");
@@ -166,24 +167,9 @@ async function addMapRoutes(element) {
         drawingControlOptions: {
             position: google.maps.ControlPosition.TOP_CENTER,
             drawingModes: [
-                //google.maps.drawing.OverlayType.MARKER,
-                //google.maps.drawing.OverlayType.CIRCLE,
                 google.maps.drawing.OverlayType.POLYGON,
-                //google.maps.drawing.OverlayType.POLYLINE,
-                //google.maps.drawing.OverlayType.RECTANGLE,
             ],
         },
-        //markerOptions: {
-        //  icon: "https://developers.google.com/maps/documentation/javascript/examples/full/images/beachflag.png",
-        //},
-        /*circleOptions: {
-          fillColor: "#ffff00",
-          fillOpacity: 1,
-          strokeWeight: 5,
-          clickable: false,
-          editable: true,
-          zIndex: 1,
-        },*/
     };
     fetch('/wp-admin/admin-ajax.php?action=lp_get_map_routes')
         .then(req => req.json())
@@ -193,6 +179,11 @@ async function addMapRoutes(element) {
                 console.log('restoring map location');
                 element.map.setCenter(JSON.parse(centerString));
             }
+            let zoomString = localStorage.getItem(element.id + '-zoom');
+            if (zoomString) {
+                console.log('restoring map zoom');
+                element.map.setZoom(JSON.parse(zoomString));
+            }
             drawRoutes(element.map, routeInfo);
         })
         .then(() => {
@@ -200,10 +191,13 @@ async function addMapRoutes(element) {
                 if (element.centerUpdateHandler) clearTimeout(element.centerUpdateHandler);
                 element.centerUpdateHandler = setTimeout(() => {
                     let centerString = JSON.stringify(element.map.getCenter());
-                    console.log(centerString);
                     localStorage.setItem(element.id + '-center', centerString);
                     delete element.centerUpdateHandler;
                 }, 1000);
+            });
+            element.map.addListener("zoom_changed", () => {
+                let zoom = JSON.stringify(element.map.getZoom());
+                localStorage.setItem(element.id + '-zoom', zoom);
             });
             const drawingManager = new google.maps.drawing.DrawingManager(managerOptions);
             drawingManager.setMap(element.map);
@@ -273,21 +267,113 @@ function beginAddingRoute(element) {
     container.appendChild(neighborhoodInput);
     container.appendChild(okButton);
     container.appendChild(cancelButton);
-    this.parentElement.appendChild(container);
+    this.insertAdjacentElement('afterend', container);
 
     routeInProgress.okButton = okButton;
 }
 
+function updateRoute(map, routeAction) {
+    let route = routeData.activeRoute;
+    if (route.status == 'Complete' && routeAction == 'delete') {
+        alert('Completed routes cannot be deleted.');
+        return;
+    }
+    let url = '/wp-admin/admin-ajax.php?action=lp_update_route&route_action='+routeAction+'&id=' + route.id;
+    fetch(url)
+        .then(req => req.json())
+        .then(routeInfo => {
+            // delete existing polygon and container, replace with updated version:
+            route.polygon.setMap(null);
+            route.container.parentElement.removeChild(route.container);
+            if (routeInfo) drawRoutes(map, routeInfo);
+        });
+}
+
 async function drawRoutes(map, routes) {
-    const {Polygon} = await google.maps.importLibrary("maps")
+    if (!routeData.hasOwnProperty('routeControl')) {
+        let container = document.createElement('div');
+        let assignButton = document.createElement('button');
+        assignButton.innerText = 'Assign To Me';
+        container.appendChild(assignButton);
+        container.assignButton = assignButton;
+        let completeButton = document.createElement('button');
+        completeButton.innerText = 'Mark Complete';
+        container.appendChild(completeButton);
+        container.completeButton = completeButton;
+        let deleteButton = document.createElement('button');
+        deleteButton.innerText = 'Delete';
+        container.appendChild(deleteButton);
+        container.deleteButton = deleteButton;
+        routeData.routeControl = container;
+    }
+    const { Polygon } = await google.maps.importLibrary("maps")
+    let existingRoutesContainer = document.getElementById('existing-routes');
     for (const route of routes) {
         var fillColor;
         switch (route.status) {
-            case 'Unassigned': fillColor = 'red'; break;
-            case 'In Progress': fillColor = 'blue'; break;
-            case 'Complete': fillColor = 'gray'; break;
+            case 'Unassigned': fillColor = new Color(210, 50, 50); break;
+            case 'Assigned': fillColor = new Color(50, 50, 210); break;
+            case 'Complete': fillColor = new Color(100, 100, 100); break;
         }
-        let options = {fillColor: fillColor, fillOpacity: 0.3, map: map, paths: JSON.parse(route.bounds), strokeColor: fillColor, strokeOpacity: 0.8};
+        let black = new Color(0, 0, 0);
+        let standardPolygonOptions = { fillColor: fillColor.toCSS(), fillOpacity: 0.3, strokeColor: fillColor.toCSS(), strokeOpacity: 0.8 };
+        let focusedPolygonOptions = { fillColor: Color.blend(0.5, black, fillColor).toCSS(), fillOpacity: 0.2, strokeColor: fillColor.toCSS(), strokeOpacity: 1.0 };
+        let options = { map: map, paths: JSON.parse(route.bounds) };
         let polygon = new google.maps.Polygon(options);
+        polygon.setOptions(standardPolygonOptions);
+
+        let container = document.createElement('div');
+        container.classList.add('route-container');
+        container.tabIndex = 0;
+        container.innerHTML = '<b>' + route.id + (route.neighborhood ? ' (' + route.neighborhood + ')' : '') + '</b>';
+        container.innerHTML += '<div>Status: ' + route.status + '</div>';
+        container.innerHTML += '<div>Residences: ' + route.number_residences + '</div>';
+        if (route.assigned_to)
+            container.innerHTML += '<div>Assigned To: ' + route.assigned_to + '</div>';
+        routeData.containers.push(container);
+
+        polygon.route = route;
+        container.route = route;
+        route.polygon = polygon;
+        route.container = container;
+
+        let clickHandler = () => {
+            container.focus();
+        };
+
+        polygon.addListener('click', clickHandler);
+        container.addEventListener('click', clickHandler);
+
+        container.addEventListener('focusin', () => {
+            // make polygon appear focused
+            polygon.setOptions(focusedPolygonOptions);
+            let polyCenter = {
+                lng: (parseFloat(polygon.route.east) + parseFloat(polygon.route.west)) / 2.0,
+                lat: (parseFloat(polygon.route.north) + parseFloat(polygon.route.south)) / 2.0
+            };
+            if (!polygon.map.getBounds().contains(polyCenter)) {
+                polygon.map.setCenter(polyCenter);
+            }
+
+            container.appendChild(routeData.routeControl);
+            routeData.routeControl.assignButton.addEventListener('click', () => { updateRoute(map, 'assign') });
+            routeData.routeControl.deleteButton.addEventListener('click', () => { updateRoute(map, 'delete') });
+            routeData.routeControl.completeButton.addEventListener('click', () => { updateRoute(map, 'complete') });
+            // to prevent the button from taking focus:
+            routeData.routeControl.assignButton.addEventListener('mousedown', (event) => { event.preventDefault(); });
+            routeData.routeControl.deleteButton.addEventListener('mousedown', (event) => { event.preventDefault(); });
+            routeData.routeControl.completeButton.addEventListener('mousedown', (event) => { event.preventDefault(); });
+            container.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+            routeData.activeRoute = route;
+        });
+
+        container.addEventListener('focusout', (event) => {
+            // restore original appearance
+            polygon.setOptions(standardPolygonOptions);
+            delete routeData.activeRoute;
+            routeData.routeControl.parentElement.removeChild(routeData.routeControl);
+        });
+
+        existingRoutesContainer.appendChild(container);
     }
 }

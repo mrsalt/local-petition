@@ -136,7 +136,7 @@ function lp_db_install()
 		west decimal(10,7),
 		north decimal(10,7),
 		south decimal(10,7),
-		status ENUM ('Unassigned','In Progress','Complete') NOT NULL DEFAULT 'Unassigned',
+		status ENUM ('Unassigned','Assigned','Complete') NOT NULL DEFAULT 'Unassigned',
 		PRIMARY KEY  (id)
 	) $charset_collate;";
 	dbDelta($sql);

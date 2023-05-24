@@ -35,9 +35,10 @@ function load_routes($id = null)
     $table_name = $wpdb->prefix . 'lp_route';
     $wp_user_table = $wpdb->prefix . 'users';
 
-    $query = "SELECT route.*, users_created_by.display_name
+    $query = "SELECT route.*, users_created_by.display_name 'created_by', users_assigned_to.display_name 'assigned_to'
             FROM `$table_name` route
             JOIN `$wp_user_table` users_created_by ON users_created_by.id = route.created_by_wp_user_id
+            LEFT JOIN `$wp_user_table` users_assigned_to ON users_assigned_to.id = route.assigned_to_wp_user_id
             WHERE route.campaign_id = %d";
     $params = array($_SESSION['campaign']->id);
 
@@ -54,6 +55,9 @@ function lp_campaign_routes($atts = [], $content = null)
     if (!set_campaign($atts['campaign'], $output)) {
         return $output;
     }
+    if (!is_user_logged_in()) {
+        return "<p>Please <a href=\"/wp-login.php\">login</a> to access this page</p>";
+    }
     // Return a list of routes.
     // If an editor, include ability to add route.
     global $campaign_map_id;
@@ -61,7 +65,7 @@ function lp_campaign_routes($atts = [], $content = null)
     if (current_user_can('edit_posts'))
         $content .= "<button onclick=\"beginAddingRoute.call(this, document.getElementById('$campaign_map_id'))\">Add Route</button>";
 
-    $content .= '<pre>' . json_encode(load_routes()) . '</pre>';
+    $content .= '<div id="existing-routes"></div>';
     return $content;
 }
 
@@ -120,5 +124,56 @@ function lp_add_route_json_handler()
         throw new Exception('Failed to insert into ' . $table_name);
     }
     wp_send_json(load_routes(id: intval($wpdb->insert_id)));
+    wp_die();
+}
+
+function lp_update_route_json_handler()
+{
+    if (!array_key_exists('campaign', $_SESSION)) {
+        wp_send_json(array('error' => 'No campaign found in $_SESSION'), 500);
+        wp_die();
+    }
+
+    if (!is_user_logged_in()) {
+        wp_send_json(array('error' => 'User not logged in'), 401);
+        wp_die();
+    }
+
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'lp_route';
+    if ($_GET['route_action'] == 'assign') {
+        $result = $wpdb->update(
+            $table_name,
+            array(
+                'assigned_to_wp_user_id' => wp_get_current_user()->ID,
+                'status' => 'Assigned'
+            ),
+            array(
+                'id' => $_GET['id']
+            )
+        );
+    } else if ($_GET['route_action'] == 'delete') {
+        $result = $wpdb->delete(
+            $table_name,
+            array(
+                'id' => $_GET['id']
+            )
+        );
+    } else if ($_GET['route_action'] == 'complete') {
+        $result = $wpdb->update(
+            $table_name,
+            array(
+                'status' => 'Complete'
+            ),
+            array(
+                'id' => $_GET['id']
+            )
+        );
+    }
+    if ($result === false) {
+        throw new Exception('Failed to ' . $_GET['route_action'] . ', ' . $table_name);
+    }
+    // send updated version back:
+    wp_send_json(load_routes(id: intval($_GET['id'])));
     wp_die();
 }
