@@ -157,7 +157,7 @@ function drawSupporterGrid(squares, element, supporters, minSupporters) {
 
 var managerOptions;
 var routeInProgress = {};
-var routeData = { containers: [] };
+var routeData = {};
 
 async function addMapRoutes(element) {
     const { Drawing } = await google.maps.importLibrary("drawing");
@@ -272,8 +272,7 @@ function beginAddingRoute(element) {
     routeInProgress.okButton = okButton;
 }
 
-function updateRoute(map, routeAction) {
-    let route = routeData.activeRoute;
+function updateRoute(map, routeAction, route) {
     if (route.status == 'Complete' && routeAction == 'delete') {
         alert('Completed routes cannot be deleted.');
         return;
@@ -290,22 +289,6 @@ function updateRoute(map, routeAction) {
 }
 
 async function drawRoutes(map, routeInfo) {
-    if (!routeData.hasOwnProperty('routeControl')) {
-        let container = document.createElement('div');
-        let assignButton = document.createElement('button');
-        assignButton.innerText = 'Assign To Me';
-        container.appendChild(assignButton);
-        container.assignButton = assignButton;
-        let completeButton = document.createElement('button');
-        completeButton.innerText = 'Mark Complete';
-        container.appendChild(completeButton);
-        container.completeButton = completeButton;
-        let deleteButton = document.createElement('button');
-        deleteButton.innerText = 'Delete';
-        container.appendChild(deleteButton);
-        container.deleteButton = deleteButton;
-        routeData.routeControl = container;
-    }
     const { Polygon } = await google.maps.importLibrary("maps")
     let existingRoutesContainer = document.getElementById('existing-routes');
     let scoreRoute = function (route) {
@@ -343,7 +326,6 @@ async function drawRoutes(map, routeInfo) {
         if (route.assigned_to) {
             container.innerHTML += '<div' + (route.assigned_to_wp_user_id == routeInfo.user_id ? ' style="font-weight: bold"' : '') + '>Assigned: ' + route.assigned_to + '</div>';
         }
-        routeData.containers.push(container);
 
         polygon.route = route;
         container.route = route;
@@ -368,24 +350,17 @@ async function drawRoutes(map, routeInfo) {
                 polygon.map.setCenter(polyCenter);
             }
 
-            container.appendChild(routeData.routeControl);
-            routeData.routeControl.assignButton.style.display = route.assigned_to_wp_user_id == routeInfo.user_id ? 'none' : '';
-            routeData.routeControl.assignButton.addEventListener('click', () => { updateRoute(map, 'assign') });
-            routeData.routeControl.deleteButton.addEventListener('click', () => { updateRoute(map, 'delete') });
-            routeData.routeControl.completeButton.addEventListener('click', () => { updateRoute(map, 'complete') });
-            // to prevent the button from taking focus:
-            routeData.routeControl.assignButton.addEventListener('mousedown', (event) => { event.preventDefault(); });
-            routeData.routeControl.deleteButton.addEventListener('mousedown', (event) => { event.preventDefault(); });
-            routeData.routeControl.completeButton.addEventListener('mousedown', (event) => { event.preventDefault(); });
+            let routeControl = buildRouteControl(route);
+            container.appendChild(routeControl);
+            container.routeControl = routeControl;
             container.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
-            routeData.activeRoute = route;
         });
 
         container.addEventListener('focusout', (event) => {
             // restore original appearance
             polygon.setOptions(standardPolygonOptions);
-            delete routeData.activeRoute;
-            routeData.routeControl.parentElement.removeChild(routeData.routeControl);
+            container.removeChild(container.routeControl);
+            delete container.routeControl;
         });
 
         for (const el of existingRoutesContainer.children) {
@@ -398,5 +373,45 @@ async function drawRoutes(map, routeInfo) {
             console.log('inserting route ' + route.id + ' at end');
             existingRoutesContainer.appendChild(container);
         }
+    }
+
+    function buildRouteControl(route) {
+        let container = document.createElement('div');
+
+        // assign button
+        let assignButton = document.createElement('button');
+        assignButton.innerText = 'Assign To Me';
+        container.appendChild(assignButton);
+        let route_action;
+        if (route.assigned_to_wp_user_id == routeInfo.user_id) {
+            assignButton.innerText = 'Unassign';
+            route_action = 'unassign';
+        }
+        else {
+            assignButton.innerText = 'Assign To Me';
+            route_action = 'assign';
+        }
+        assignButton.addEventListener('click', () => { updateRoute(map, route_action, route) });
+        assignButton.addEventListener('mousedown', (event) => { event.preventDefault(); });
+        container.assignButton = assignButton;
+
+        // complete button
+        let completeButton = document.createElement('button');
+        completeButton.innerText = 'Mark Complete';
+        container.appendChild(completeButton);
+        completeButton.addEventListener('click', () => { updateRoute(map, 'complete', route) });
+        completeButton.addEventListener('mousedown', (event) => { event.preventDefault(); });
+        container.completeButton = completeButton;
+
+        // delete button
+        if (routeInfo.is_editor) {
+            let deleteButton = document.createElement('button');
+            deleteButton.innerText = 'Delete';
+            container.appendChild(deleteButton);
+            deleteButton.addEventListener('click', () => { updateRoute(map, 'delete', route) });
+            deleteButton.addEventListener('mousedown', (event) => { event.preventDefault(); });
+            container.deleteButton = deleteButton;
+        }
+        return container;
     }
 }

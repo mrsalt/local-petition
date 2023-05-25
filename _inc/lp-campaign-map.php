@@ -47,7 +47,11 @@ function load_route_info($id = null)
         $params[] = $id;
     }
     $query = $wpdb->prepare($query, $params);
-    return array('user_id' => wp_get_current_user()->ID, 'routes' => $wpdb->get_results($query, ARRAY_A));
+    return array(
+        'user_id' => wp_get_current_user()->ID,
+        'is_editor' => current_user_can('edit_posts'),
+        'routes' => $wpdb->get_results($query, ARRAY_A)
+    );
 }
 
 function lp_campaign_routes($atts = [], $content = null)
@@ -152,7 +156,18 @@ function lp_update_route_json_handler()
                 'id' => $_GET['id']
             )
         );
-    } else if ($_GET['route_action'] == 'delete') {
+    } else if ($_GET['route_action'] == 'unassign') {
+        $result = $wpdb->update(
+            $table_name,
+            array(
+                'assigned_to_wp_user_id' => null,
+                'status' => 'Unassigned'
+            ),
+            array(
+                'id' => $_GET['id']
+            )
+        );
+    }else if ($_GET['route_action'] == 'delete') {
         $result = $wpdb->delete(
             $table_name,
             array(
