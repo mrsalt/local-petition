@@ -19,7 +19,7 @@ function lp_campaign_map($atts = [], $content = null)
     return lp_create_map_element($campaign_map_id, 'campaign-map', true, $atts['lat'], $atts['lng'], $atts['zoom'], $extra_script);
 }
 
-function load_routes($id = null)
+function load_route_info($id = null)
 {
     if (!array_key_exists('campaign', $_SESSION)) {
         wp_send_json(array('error' => 'No campaign found in $_SESSION'), 500);
@@ -47,7 +47,7 @@ function load_routes($id = null)
         $params[] = $id;
     }
     $query = $wpdb->prepare($query, $params);
-    return $wpdb->get_results($query, ARRAY_A);
+    return array('user_id' => wp_get_current_user()->ID, 'routes' => $wpdb->get_results($query, ARRAY_A));
 }
 
 function lp_campaign_routes($atts = [], $content = null)
@@ -71,7 +71,7 @@ function lp_campaign_routes($atts = [], $content = null)
 
 function lp_get_map_routes_json_handler()
 {
-    wp_send_json(load_routes());
+    wp_send_json(load_route_info());
     wp_die();
 }
 
@@ -123,7 +123,7 @@ function lp_add_route_json_handler()
     if ($result === false) {
         throw new Exception('Failed to insert into ' . $table_name);
     }
-    wp_send_json(load_routes(id: intval($wpdb->insert_id)));
+    wp_send_json(load_route_info(id: intval($wpdb->insert_id)));
     wp_die();
 }
 
@@ -174,6 +174,6 @@ function lp_update_route_json_handler()
         throw new Exception('Failed to ' . $_GET['route_action'] . ', ' . $table_name);
     }
     // send updated version back:
-    wp_send_json(load_routes(id: intval($_GET['id'])));
+    wp_send_json(load_route_info(id: intval($_GET['id'])));
     wp_die();
 }

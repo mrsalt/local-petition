@@ -278,7 +278,7 @@ function updateRoute(map, routeAction) {
         alert('Completed routes cannot be deleted.');
         return;
     }
-    let url = '/wp-admin/admin-ajax.php?action=lp_update_route&route_action='+routeAction+'&id=' + route.id;
+    let url = '/wp-admin/admin-ajax.php?action=lp_update_route&route_action=' + routeAction + '&id=' + route.id;
     fetch(url)
         .then(req => req.json())
         .then(routeInfo => {
@@ -289,7 +289,7 @@ function updateRoute(map, routeAction) {
         });
 }
 
-async function drawRoutes(map, routes) {
+async function drawRoutes(map, routeInfo) {
     if (!routeData.hasOwnProperty('routeControl')) {
         let container = document.createElement('div');
         let assignButton = document.createElement('button');
@@ -308,6 +308,18 @@ async function drawRoutes(map, routes) {
     }
     const { Polygon } = await google.maps.importLibrary("maps")
     let existingRoutesContainer = document.getElementById('existing-routes');
+    let scoreRoute = function (route) {
+        if (route.status == 'Assigned' && route.assigned_to_wp_user_id == routeInfo.user_id) return 0;
+        if (route.status == 'Unassigned') return 1;
+        if (route.status == 'Assigned') return 2;
+        return 3;
+    };
+    let routeComparator = function (a, b) {
+        let delta = scoreRoute(a) - scoreRoute(b);
+        if (delta !== 0) return delta;
+        return a.id - b.id;
+    };
+    let routes = routeInfo.routes;
     for (const route of routes) {
         var fillColor;
         switch (route.status) {
@@ -326,10 +338,11 @@ async function drawRoutes(map, routes) {
         container.classList.add('route-container');
         container.tabIndex = 0;
         container.innerHTML = '<b>' + route.id + (route.neighborhood ? ' (' + route.neighborhood + ')' : '') + '</b>';
-        container.innerHTML += '<div>Status: ' + route.status + '</div>';
+        container.innerHTML += '<div style="color: ' + fillColor.toCSS() + '">Status: ' + route.status + '</div>';
         container.innerHTML += '<div>Residences: ' + route.number_residences + '</div>';
-        if (route.assigned_to)
-            container.innerHTML += '<div>Assigned To: ' + route.assigned_to + '</div>';
+        if (route.assigned_to) {
+            container.innerHTML += '<div' + (route.assigned_to_wp_user_id == routeInfo.user_id ? ' style="font-weight: bold"' : '') + '>Assigned: ' + route.assigned_to + '</div>';
+        }
         routeData.containers.push(container);
 
         polygon.route = route;
@@ -356,6 +369,7 @@ async function drawRoutes(map, routes) {
             }
 
             container.appendChild(routeData.routeControl);
+            routeData.routeControl.assignButton.style.display = route.assigned_to_wp_user_id == routeInfo.user_id ? 'none' : '';
             routeData.routeControl.assignButton.addEventListener('click', () => { updateRoute(map, 'assign') });
             routeData.routeControl.deleteButton.addEventListener('click', () => { updateRoute(map, 'delete') });
             routeData.routeControl.completeButton.addEventListener('click', () => { updateRoute(map, 'complete') });
@@ -374,6 +388,15 @@ async function drawRoutes(map, routes) {
             routeData.routeControl.parentElement.removeChild(routeData.routeControl);
         });
 
-        existingRoutesContainer.appendChild(container);
+        for (const el of existingRoutesContainer.children) {
+            if (el.route && routeComparator(route, el.route) < 0) {
+                el.insertAdjacentElement('beforebegin', container);
+                break;
+            }
+        }
+        if (!container.parentElement) {
+            console.log('inserting route ' + route.id + ' at end');
+            existingRoutesContainer.appendChild(container);
+        }
     }
 }
