@@ -184,7 +184,19 @@ async function addMapRoutes(element) {
                 console.log('restoring map zoom');
                 element.map.setZoom(JSON.parse(zoomString));
             }
-            drawRoutes(element.map, routeInfo);
+            if (routeInfo.is_editor) {
+                fetch('/wp-admin/admin-ajax.php?action=lp_get_users')
+                    .then(req => req.json())
+                    .then(userList => {
+                        routeData.userList = userList;
+                    })
+                    .then(() => {
+                        drawRoutes(element.map, routeInfo);
+                    })
+            }
+            else {
+                drawRoutes(element.map, routeInfo);
+            }
         })
         .then(() => {
             element.map.addListener("center_changed", () => {
@@ -272,12 +284,12 @@ function beginAddingRoute(element) {
     routeInProgress.okButton = okButton;
 }
 
-function updateRoute(map, routeAction, route) {
+function updateRoute(map, routeAction, route, userId) {
     if (route.status == 'Complete' && routeAction == 'delete') {
         alert('Completed routes cannot be deleted.');
         return;
     }
-    let url = '/wp-admin/admin-ajax.php?action=lp_update_route&route_action=' + routeAction + '&id=' + route.id;
+    let url = '/wp-admin/admin-ajax.php?action=lp_update_route&route_action=' + routeAction + '&id=' + route.id + '&user_id=' + userId;
     fetch(url)
         .then(req => req.json())
         .then(routeInfo => {
@@ -350,7 +362,7 @@ async function drawRoutes(map, routeInfo) {
                 polygon.map.setCenter(polyCenter);
             }
 
-            let routeControl = buildRouteControl(route);
+            let routeControl = buildRouteControl(route, routeInfo.is_editor);
             container.appendChild(routeControl);
             container.routeControl = routeControl;
             container.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
@@ -370,38 +382,72 @@ async function drawRoutes(map, routeInfo) {
             }
         }
         if (!container.parentElement) {
-            console.log('inserting route ' + route.id + ' at end');
             existingRoutesContainer.appendChild(container);
         }
     }
 
-    function buildRouteControl(route) {
+    function buildRouteControl(route, is_editor) {
         let container = document.createElement('div');
+        let getUserId;
+        let assignedToMe = route.assigned_to_wp_user_id == routeInfo.user_id;
 
         // assign button
-        let assignButton = document.createElement('button');
-        assignButton.innerText = 'Assign To Me';
-        container.appendChild(assignButton);
-        let route_action;
-        if (route.assigned_to_wp_user_id == routeInfo.user_id) {
-            assignButton.innerText = 'Unassign';
-            route_action = 'unassign';
+        if (!is_editor) {
+            if (assignedToMe || route.status == 'Unassigned') {
+                let assignButton = document.createElement('button');
+                let route_action;
+                container.appendChild(assignButton);
+                if (assignedToMe) {
+                    assignButton.innerText = 'Unassign';
+                    route_action = 'unassign';
+                }
+                else {
+                    assignButton.innerText = 'Assign To Me';
+                    route_action = 'assign';
+                }
+                assignButton.addEventListener('click', () => { updateRoute(map, route_action, route, routeInfo.user_id) });
+                assignButton.addEventListener('mousedown', (event) => { event.preventDefault(); });
+            }
         }
         else {
-            assignButton.innerText = 'Assign To Me';
-            route_action = 'assign';
+            let assignButton = document.createElement('button');
+            assignButton.innerText = 'Assign';
+            container.appendChild(assignButton);
+            let select = document.createElement('div');
+            select.classList.add('assignee-list');
+            for (const user of routeData.userList) {
+                let option = document.createElement('button');
+                option.classList.add('assignee-button');
+                option.value = user.ID;
+                option.innerText = user.display_name;
+                if (route.assigned_to_wp_user_id == user.ID) option.disabled = true;
+                select.appendChild(option);
+            }
+            if (route.status == 'Assigned') {
+                let option = document.createElement('button');
+                option.classList.add('assignee-button');
+                option.value = '-1';
+                option.innerText = '<Unassign>';
+                select.appendChild(option);
+            }
+            select.style.display = 'None';
+            container.appendChild(select);
+            getUserId = () => { select.value };
+            select.addEventListener('mousedown', (event) => { event.preventDefault(); });
+            select.addEventListener('click', (e) => { updateRoute(map, e.target.value == '-1' ? 'unassign' : 'assign', route, e.target.value) });
+            assignButton.addEventListener('click', () => { select.style.display = '' });
+            assignButton.addEventListener('mousedown', (event) => { event.preventDefault(); });
         }
-        assignButton.addEventListener('click', () => { updateRoute(map, route_action, route) });
-        assignButton.addEventListener('mousedown', (event) => { event.preventDefault(); });
-        container.assignButton = assignButton;
 
         // complete button
-        let completeButton = document.createElement('button');
-        completeButton.innerText = 'Mark Complete';
-        container.appendChild(completeButton);
-        completeButton.addEventListener('click', () => { updateRoute(map, 'complete', route) });
-        completeButton.addEventListener('mousedown', (event) => { event.preventDefault(); });
-        container.completeButton = completeButton;
+        if (routeInfo.is_editor || assignedToMe) {
+            let completeButton = document.createElement('button');
+            completeButton.innerText = 'Mark Complete';
+            container.appendChild(completeButton);
+            completeButton.addEventListener('click', () => { updateRoute(map, 'complete', route) });
+            completeButton.addEventListener('mousedown', (event) => { event.preventDefault(); });
+            container.completeButton = completeButton;
+        }
 
         // delete button
         if (routeInfo.is_editor) {

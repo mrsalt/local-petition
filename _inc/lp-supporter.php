@@ -38,8 +38,7 @@ function lp_get_supporters_map_coordinates_json_handler()
             $_GET['lng_box_size'],
             $_SESSION['campaign']->id
         );
-    }
-    else if ($extra_details) {
+    } else if ($extra_details) {
         $query = "SELECT $extra_details
                 FROM `$table_name` signer
                 JOIN `$address_table` address ON address.id = signer.address_id WHERE signer.is_supporter = 1 AND signer.campaign_id = %d";
@@ -136,6 +135,29 @@ function lp_get_supporters_json_handler()
                      (photo_file IS NOT NULL AND photo_file != '') OR
                      (title IS NOT NULL AND title != ''))";
     $result = $wpdb->get_results($wpdb->prepare($query, $_SESSION['campaign']->id), ARRAY_A);
+    shuffle($result);
+    wp_send_json($result);
+    wp_die();
+}
+
+function lp_get_users_json_handler()
+{
+    if (!array_key_exists('campaign', $_SESSION)) {
+        wp_send_json(array('error' => 'No campaign found in $_SESSION'), 500);
+        wp_die();
+    }
+
+    if (!current_user_can('edit_posts')) {
+        wp_send_json(array('error' => 'Accessing list of users requires edit_posts permission'), 403);
+        wp_die();
+    }
+
+    global $wpdb;
+    $users = $wpdb->prefix . 'users';
+    $query = "SELECT ID, display_name
+              FROM `$users`
+              ORDER BY display_name";
+    $result = $wpdb->get_results($wpdb->prepare($query), ARRAY_A);
     shuffle($result);
     wp_send_json($result);
     wp_die();

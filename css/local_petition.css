@@ -161,6 +161,15 @@ div.route-container:focus {
     overflow-y: scroll;
 }
 
+div.assignee-list {
+    border: 1px solid gray;
+    padding: 10px;
+}
+
+button.assignee-button {
+    width: 100%;
+}
+
 /* admin styles */
 
 table.lp-table, th.lp-table-header, td.lp-table-data {

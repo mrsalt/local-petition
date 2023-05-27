@@ -359,7 +359,7 @@ function add_bulk_sign_inputs($campaign_id)
     $content .= '<p><label>Signature Collector: ';
     global $wpdb;
     $table_name = $wpdb->prefix . 'lp_signer';
-    $query = prepare_query("SELECT id, name FROM {$table_name} WHERE `campaign_id` = %s AND `is_helper` = 1", $campaign_id);
+    $query = prepare_query("SELECT id, name FROM {$table_name} WHERE `campaign_id` = %s AND `is_helper` = 1 ORDER BY name", $campaign_id);
     $results = $wpdb->get_results($query);
     //$content .= '<pre>'.var_export($results, true).'</pre>';
     $content .= '<select name="proxy_id" required="true">';

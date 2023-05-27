@@ -146,10 +146,11 @@ function lp_update_route_json_handler()
     global $wpdb;
     $table_name = $wpdb->prefix . 'lp_route';
     if ($_GET['route_action'] == 'assign') {
+        $user_id = current_user_can('edit_posts') ? $_GET['user_id'] : wp_get_current_user()->ID;
         $result = $wpdb->update(
             $table_name,
             array(
-                'assigned_to_wp_user_id' => wp_get_current_user()->ID,
+                'assigned_to_wp_user_id' => $user_id,
                 'status' => 'Assigned'
             ),
             array(
