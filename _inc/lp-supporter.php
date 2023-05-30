@@ -24,7 +24,7 @@ function lp_get_supporters_map_coordinates_json_handler()
     $address_table = $wpdb->prefix . 'lp_address';
     $extra_details = is_user_logged_in() ? 'signer.id, name, address.latitude AS lat, address.longitude AS lng' : '';
     if ($_GET['lat_center'] !== 'undefined' && $_GET['lat_box_size'] !== 'undefined') {
-        $extra_details .= ',';
+        if ($extra_details) $extra_details .= ',';
         $query = "SELECT $extra_details
                 FLOOR((address.latitude - %f) / %f) AS lat_box
                 , FLOOR((address.longitude - %f) / %f) AS lng_box

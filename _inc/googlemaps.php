@@ -58,7 +58,7 @@ function lp_get_map_id()
     return 'map-' . $map_counter;
 }
 
-function lp_create_map_element($id, $class_name, $load_marker_clusterer, $lat = null, $lng = null, $zoom = 'null', $additional_script = '')
+function lp_create_map_element($id, $class_name, $load_marker_clusterer, $lat = null, $lng = null, $zoom = 'null', $mapId = 'null', $additional_script = '')
 {
     $content = '<div id="' . $id . '" class="' . $class_name . '"></div>';
     global $map_api_loaded;
@@ -77,7 +77,7 @@ function lp_create_map_element($id, $class_name, $load_marker_clusterer, $lat = 
         if ($map_properties) $map_properties .= ', ';
         $map_properties .= '"lng": ' . $lng;
     }
-    $content .= '<script>initMap(document.getElementById(\'' . $id . '\'), {' . $map_properties . '}, ' . $zoom . ')' .
+    $content .= '<script>initMap(document.getElementById(\'' . $id . '\'), {' . $map_properties . '}, ' . $zoom . ', \'' . $mapId . '\')' .
         $additional_script .
         '</script>' . "\n";
     return $content;

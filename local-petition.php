@@ -84,6 +84,7 @@ add_action('wp_ajax_lp_get_map_routes', 'lp_get_map_routes_json_handler');
 add_action('wp_ajax_lp_add_route', 'lp_add_route_json_handler');
 add_action('wp_ajax_lp_update_route', 'lp_update_route_json_handler');
 add_action('wp_ajax_lp_get_users', 'lp_get_users_json_handler');
+add_action('wp_ajax_lp_update_route_number_position', 'lp_update_route_number_position_json_handler');
 
 wp_enqueue_style('local_petition_style', plugins_url('css/local_petition.css', __FILE__), false, LOCAL_PETITION_VERSION);
 wp_enqueue_script('jscookie', plugins_url('js/js.cookie.min.js', __FILE__), array(), '3.0.5');

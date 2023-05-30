@@ -1,24 +1,31 @@
 // position should be an object like this:
 // const position = { lat: -25.344, lng: 131.031 };
 // zoom should be a zoom level.  0 = whole earth, 4 = zoomed out very far.  15?
-async function initMap(element, position, zoom) {
+async function initMap(element, position, zoom, mapId) {
     const { Map } = await google.maps.importLibrary("maps");
 
-    //https://developers.google.com/maps/documentation/get-map-id
-    let map = new Map(element, {
+    let mapOptions = {
         zoom: zoom,
         center: position,
-        styles: [{
+        disableDoubleClickZoom: true,
+        streetViewControl: false,
+    };
+    if (mapId) {
+        mapOptions['mapId'] = mapId;
+    }
+    else {
+        mapOptions['styles'] = [{
             featureType: 'poi',
-            stylers: [{ visibility: 'off' }]  // Turn off POI.
+            stylers: [{ visibility: 'off' }]  // Turn off points of interest.
         },
         {
             featureType: 'transit.station',
             stylers: [{ visibility: 'off' }]  // Turn off bus, train stations etc.
-        }],
-        disableDoubleClickZoom: true,
-        streetViewControl: false,
-    });
+        }];
+    }
+
+    //https://developers.google.com/maps/documentation/get-map-id
+    let map = new Map(element, mapOptions);
 
     element.map = map;
 }
@@ -112,7 +119,7 @@ async function addMapSupporterOverlays(element, gridLat = undefined, gridLng = u
             if (markerList.length > 0) {
                 const markerCluster = new markerClusterer.MarkerClusterer({ map: element.map, markers: markerList });
             }
-            if (squares.values().length > 0) {
+            if (squares.size > 0) {
                 drawSupporterGrid(squares, element, supporters, minSupporters);
             }
         });
@@ -157,7 +164,7 @@ function drawSupporterGrid(squares, element, supporters, minSupporters) {
 
 var managerOptions;
 var routeInProgress = {};
-var routeData = {};
+var routeData = { maxRouteID: 0, routes: [] };
 
 async function addMapRoutes(element) {
     const { Drawing } = await google.maps.importLibrary("drawing");
@@ -199,7 +206,7 @@ async function addMapRoutes(element) {
             }
         })
         .then(() => {
-            element.map.addListener("center_changed", () => {
+            element.map.addListener('center_changed', () => {
                 if (element.centerUpdateHandler) clearTimeout(element.centerUpdateHandler);
                 element.centerUpdateHandler = setTimeout(() => {
                     let centerString = JSON.stringify(element.map.getCenter());
@@ -207,7 +214,14 @@ async function addMapRoutes(element) {
                     delete element.centerUpdateHandler;
                 }, 1000);
             });
-            element.map.addListener("zoom_changed", () => {
+            element.map.addListener('zoom_changed', () => {
+                let oldZoom = JSON.parse(localStorage.getItem(element.id + '-zoom'));
+                let newFontSize = getTextSizeForZoomLevel(element.map.getZoom());
+                if (oldZoom && getTextSizeForZoomLevel(oldZoom) != newFontSize) {
+                    for (const route of routeData.routes) {
+                        route.mapNumber.then((marker) => { marker.content.style.fontSize = newFontSize })
+                    }
+                }
                 let zoom = JSON.stringify(element.map.getZoom());
                 localStorage.setItem(element.id + '-zoom', zoom);
             });
@@ -220,8 +234,50 @@ async function addMapRoutes(element) {
                     routeInProgress.okButton.disabled = false;
                 routeInProgress.polygon = polygon;
                 routeInProgress.path = JSON.stringify(polygon.getPath().getArray());
+                routeInProgress.mapNumber = placeNumber(routeData.maxRouteID + 1, element.map, findCenterOf(JSON.parse(routeInProgress.path)));
             });
         });
+}
+
+function findCenterOf(path) {
+    let east, west, north, south;
+    for (const pos of path) {
+        if (east === undefined) {
+            east = pos.lng;
+            west = pos.lng;
+            north = pos.lat;
+            south = pos.lat;
+            continue;
+        }
+        if (pos.lng < west) west = pos.lng;
+        else if (pos.lng > east) east = pos.lng;
+        if (pos.lat < south) south = pos.lat;
+        else if (pos.lat > north) north = pos.lat;
+    }
+    return { lng: (east + west) / 2.0, lat: (north + south) / 2.0 };
+}
+
+function getTextSizeForZoomLevel(level) {
+    return level > 16 ? '30px' : '18px';
+}
+
+async function placeNumber(number, map, position) {
+    const { AdvancedMarkerElement } = await google.maps.importLibrary("marker")
+    let el = document.createElement('div')
+    el.innerText = number;
+    el.style.fontSize = getTextSizeForZoomLevel(map.getZoom());
+    el.style.fontWeight = 'bold';
+    let marker = new AdvancedMarkerElement({ content: el, gmpDraggable: true, map: map, position: position });
+    marker.addListener('dragend', () => {
+        if (routeInProgress.polygon) {
+            routeInProgress.numberPosition = JSON.stringify(marker.position);
+        }
+        else {
+            let url = '/wp-admin/admin-ajax.php?action=lp_update_route_number_position&id=' + number + '&position=' + encodeURIComponent(JSON.stringify(marker.position));
+            fetch(url);
+        }
+    });
+    return marker;
 }
 
 function beginAddingRoute(element) {
@@ -241,7 +297,9 @@ function beginAddingRoute(element) {
         addRouteButton.disabled = false;
         container.parentElement.removeChild(container);
         routeInProgress.polygon.setMap(null);
+        routeInProgress.mapNumber.then((marker) => { marker.map = null })
         delete routeInProgress.polygon;
+        routeInProgress = {};
         e.stopPropagation();
     }
 
@@ -264,6 +322,8 @@ function beginAddingRoute(element) {
             return;
         }
         let url = '/wp-admin/admin-ajax.php?action=lp_add_route&neighborhood=' + encodeURIComponent(neighborhoodInput.value) + '&residences=' + residenceInput.valueAsNumber + '&bounds=' + encodeURIComponent(routeInProgress.path);
+        if (routeInProgress.numberPosition)
+            url += '&number_position=' + encodeURIComponent(routeInProgress.numberPosition);
         fetch(url)
             .then(req => req.json())
             .then(routeInfo => {
@@ -294,7 +354,10 @@ function updateRoute(map, routeAction, route, userId) {
         .then(req => req.json())
         .then(routeInfo => {
             // delete existing polygon and container, replace with updated version:
+            const index = routeData.routes.indexOf(route);
+            if (index > -1) routeData.routes.splice(index, 1);
             route.polygon.setMap(null);
+            route.mapNumber.then((marker) => { marker.map = null })
             route.container.parentElement.removeChild(route.container);
             if (routeInfo) drawRoutes(map, routeInfo);
         });
@@ -316,16 +379,19 @@ async function drawRoutes(map, routeInfo) {
     };
     let routes = routeInfo.routes;
     for (const route of routes) {
-        var fillColor;
+        if (parseInt(route.id) > parseInt(routeData.maxRouteID))
+            routeData.maxRouteID = parseInt(route.id);
+        let fillColor, fillOpacity = 0.3;
         switch (route.status) {
-            case 'Unassigned': fillColor = new Color(210, 50, 50); break;
-            case 'Assigned': fillColor = new Color(50, 50, 210); break;
+            case 'Unassigned': fillColor = new Color(210, 50, 50); fillOpacity = 0; break;
+            case 'Assigned': fillColor = new Color(50, 50, 210); fillOpacity = 0; break;
             case 'Complete': fillColor = new Color(100, 100, 100); break;
         }
         let black = new Color(0, 0, 0);
-        let standardPolygonOptions = { fillColor: fillColor.toCSS(), fillOpacity: 0.3, strokeColor: fillColor.toCSS(), strokeOpacity: 0.8 };
+        let standardPolygonOptions = { fillColor: fillColor.toCSS(), fillOpacity: fillOpacity, strokeColor: fillColor.toCSS(), strokeOpacity: 0.8 };
         let focusedPolygonOptions = { fillColor: Color.blend(0.5, black, fillColor).toCSS(), fillOpacity: 0.2, strokeColor: fillColor.toCSS(), strokeOpacity: 1.0 };
-        let options = { map: map, paths: JSON.parse(route.bounds) };
+        let paths = JSON.parse(route.bounds);
+        let options = { map: map, paths: paths };
         let polygon = new google.maps.Polygon(options);
         polygon.setOptions(standardPolygonOptions);
 
@@ -384,11 +450,17 @@ async function drawRoutes(map, routeInfo) {
         if (!container.parentElement) {
             existingRoutesContainer.appendChild(container);
         }
+
+        let number_position;
+        if (route.number_position) number_position = JSON.parse(route.number_position);
+        else number_position = findCenterOf(paths);
+        route.mapNumber = placeNumber(route.id, map, number_position);
+
+        routeData.routes.push(route);
     }
 
     function buildRouteControl(route, is_editor) {
         let container = document.createElement('div');
-        let getUserId;
         let assignedToMe = route.assigned_to_wp_user_id == routeInfo.user_id;
 
         // assign button

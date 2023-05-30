@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.40';
+$lp_db_version = '1.41';
 
 function lp_db_install()
 {
@@ -132,6 +132,7 @@ function lp_db_install()
 		number_residences smallint(3) NOT NULL,
 		neighborhood varchar(50),
 		bounds text NOT NULL,
+		number_position text NULL,
 		east decimal(10,7),
 		west decimal(10,7),
 		north decimal(10,7),

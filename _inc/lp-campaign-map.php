@@ -16,7 +16,9 @@ function lp_campaign_map($atts = [], $content = null)
     $campaign_map_id = 'campaign-map';
     $extra_script = ".then(() => { addMapSupporterOverlays(document.getElementById('$campaign_map_id')) })" .
         ".then(() => { addMapRoutes(document.getElementById('$campaign_map_id')) })";
-    return lp_create_map_element($campaign_map_id, 'campaign-map', true, $atts['lat'], $atts['lng'], $atts['zoom'], $extra_script);
+    // mapId could be configured in admin pages
+    $mapId = '8c6c1d4242e1a575';
+    return lp_create_map_element($campaign_map_id, 'campaign-map', true, $atts['lat'], $atts['lng'], $atts['zoom'], $mapId, $extra_script);
 }
 
 function load_route_info($id = null)
@@ -123,6 +125,8 @@ function lp_add_route_json_handler()
         'north' => $north,
         'south' => $south
     );
+    if (array_key_exists('number_position', $_GET))
+        $values['number_position'] = wp_unslash($_GET['number_position']);
     $result = $wpdb->insert($table_name, $values);
     if ($result === false) {
         throw new Exception('Failed to insert into ' . $table_name);
@@ -168,7 +172,7 @@ function lp_update_route_json_handler()
                 'id' => $_GET['id']
             )
         );
-    }else if ($_GET['route_action'] == 'delete') {
+    } else if ($_GET['route_action'] == 'delete') {
         $result = $wpdb->delete(
             $table_name,
             array(
@@ -192,4 +196,33 @@ function lp_update_route_json_handler()
     // send updated version back:
     wp_send_json(load_route_info(id: intval($_GET['id'])));
     wp_die();
+}
+
+function lp_update_route_number_position_json_handler()
+{
+    if (!array_key_exists('campaign', $_SESSION)) {
+        wp_send_json(array('error' => 'No campaign found in $_SESSION'), 500);
+        wp_die();
+    }
+
+    if (!is_user_logged_in()) {
+        wp_send_json(array('error' => 'User not logged in'), 401);
+        wp_die();
+    }
+
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'lp_route';
+    $result = $wpdb->update(
+        $table_name,
+        array(
+            'number_position' => wp_unslash($_GET['position'])
+        ),
+        array(
+            'id' => $_GET['id']
+        )
+    );
+    if ($result === false) {
+        throw new Exception('Failed to update position, ' . $table_name);
+    }
+    exit(0);
 }
