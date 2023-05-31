@@ -1,3 +1,5 @@
+"use strict";
+
 // position should be an object like this:
 // const position = { lat: -25.344, lng: 131.031 };
 // zoom should be a zoom level.  0 = whole earth, 4 = zoomed out very far.  15?
@@ -165,6 +167,7 @@ function drawSupporterGrid(squares, element, supporters, minSupporters) {
 var managerOptions;
 var routeInProgress = {};
 var routeData = { maxRouteID: 0, routes: [] };
+var visitData = { visits: [], byAddress: new Map() };
 
 async function addMapRoutes(element) {
     const { Drawing } = await google.maps.importLibrary("drawing");
@@ -207,11 +210,11 @@ async function addMapRoutes(element) {
         })
         .then(() => {
             element.map.addListener('center_changed', () => {
-                if (element.centerUpdateHandler) clearTimeout(element.centerUpdateHandler);
-                element.centerUpdateHandler = setTimeout(() => {
+                if (element.centerPersistHandler) clearTimeout(element.centerPersistHandler);
+                element.centerPersistHandler = setTimeout(() => {
                     let centerString = JSON.stringify(element.map.getCenter());
                     localStorage.setItem(element.id + '-center', centerString);
-                    delete element.centerUpdateHandler;
+                    delete element.centerPersistHandler;
                 }, 1000);
             });
             element.map.addListener('zoom_changed', () => {
@@ -236,6 +239,12 @@ async function addMapRoutes(element) {
                 routeInProgress.path = JSON.stringify(polygon.getPath().getArray());
                 routeInProgress.mapNumber = placeNumber(routeData.maxRouteID + 1, element.map, findCenterOf(JSON.parse(routeInProgress.path)));
             });
+        });
+
+    fetch('/wp-admin/admin-ajax.php?action=lp_get_visits')
+        .then(req => req.json())
+        .then(visitInfo => {
+            drawVisits(element.map, visitInfo);
         });
 }
 
@@ -264,9 +273,10 @@ function getTextSizeForZoomLevel(level) {
 async function placeNumber(number, map, position) {
     const { AdvancedMarkerElement } = await google.maps.importLibrary("marker")
     let el = document.createElement('div')
-    el.innerText = number;
+    el.textContent = number;
     el.style.fontSize = getTextSizeForZoomLevel(map.getZoom());
     el.style.fontWeight = 'bold';
+    el.style.color = 'black';
     let marker = new AdvancedMarkerElement({ content: el, gmpDraggable: true, map: map, position: position });
     marker.addListener('dragend', () => {
         if (routeInProgress.polygon) {
@@ -364,7 +374,7 @@ function updateRoute(map, routeAction, route, userId) {
 }
 
 async function drawRoutes(map, routeInfo) {
-    const { Polygon } = await google.maps.importLibrary("maps")
+    const { Polygon } = await google.maps.importLibrary("maps");
     let existingRoutesContainer = document.getElementById('existing-routes');
     let scoreRoute = function (route) {
         if (route.status == 'Assigned' && route.assigned_to_wp_user_id == routeInfo.user_id) return 0;
@@ -463,6 +473,16 @@ async function drawRoutes(map, routeInfo) {
         let container = document.createElement('div');
         let assignedToMe = route.assigned_to_wp_user_id == routeInfo.user_id;
 
+        // start button
+        if (assignedToMe) {
+            let startButton = document.createElement('button');
+            startButton.innerText = 'Start';
+            container.appendChild(startButton);
+            startButton.addEventListener('click', () => { startRoute(map, route) });
+            startButton.addEventListener('mousedown', (event) => { event.preventDefault(); });
+            container.startButton = startButton;
+        }
+
         // assign button
         if (!is_editor) {
             if (assignedToMe || route.status == 'Unassigned') {
@@ -504,7 +524,6 @@ async function drawRoutes(map, routeInfo) {
             }
             select.style.display = 'None';
             container.appendChild(select);
-            getUserId = () => { select.value };
             select.addEventListener('mousedown', (event) => { event.preventDefault(); });
             select.addEventListener('click', (e) => { updateRoute(map, e.target.value == '-1' ? 'unassign' : 'assign', route, e.target.value) });
             assignButton.addEventListener('click', () => { select.style.display = '' });
@@ -532,4 +551,189 @@ async function drawRoutes(map, routeInfo) {
         }
         return container;
     }
+}
+
+function calculateDistance(a, b) {
+    let latDelta = a.lat() - b.lat();
+    let lngDelta = a.lng() - b.lng();
+    return Math.sqrt(latDelta * latDelta + lngDelta * lngDelta);
+}
+
+async function placeVisit(visit, map) {
+    const { AdvancedMarkerElement } = await google.maps.importLibrary("marker")
+    let el = document.createElement('div')
+    switch (visit.status) {
+        case 'Talked - Signed':
+            el.textContent = 'Y';
+            break;
+        case 'Talked - Did Not Sign':
+            el.textContent = 'N';
+            break;
+        case 'Flyer':
+            el.textContent = 'F';
+            break;
+        case 'Skipped':
+            el.textContent = 'X';
+            break;
+    }
+    el.style.fontSize = getTextSizeForZoomLevel(map.getZoom());
+    el.style.fontWeight = 'bold';
+    let marker = new AdvancedMarkerElement({ content: el, gmpDraggable: false, map: map, position: { lat: visit.latitude, lng: visit.longitude } });
+    return marker;
+}
+
+async function drawVisits(map, visitInfo) {
+    for (const visit of visitInfo.visits) {
+        visitData.visits.push(visit);
+        visitData.byAddress.set(visit.line_1, visit);
+        visit.marker = placeVisit(visit, map);
+    }
+}
+
+function startRoute(map, route) {
+    for (const r of routeData.routes) {
+        r.polygon.setVisible(r === route);
+    }
+
+    let fullScreenButton = document.querySelector('button.gm-control-active.gm-fullscreen-control');
+    if (fullScreenButton) {
+        fullScreenButton.dispatchEvent(new MouseEvent("click", {
+            view: window,
+            bubbles: true,
+            cancelable: true,
+        }));
+    }
+    else {
+        let existingRoutesContainer = document.getElementById('existing-routes');
+        existingRoutesContainer.style.display = 'None';
+    }
+
+    //TODO:
+    // map will raise event when location changes, location changing will cause geocoding to take place
+    // add window that shows current detected address, with controls to indicate if 'Y' signed or 'N' did not sign, 'F' left flyer, 'X' did not leave flyer or talk
+    // should manually panning the map disable automatic geocoding?  can manually panning be disabled?
+    // add blue dot for current location.  map will center on current location automatically.
+    // add 'Exit Route' button
+
+    let context = {};
+
+    let geocoder = new google.maps.Geocoder();
+    const minDist = 0.00008; // minimum distance to make new geocode request.  about 30 feet
+
+    let addressWindow = document.createElement('div');
+    addressWindow.classList.add('visit-window');
+    let addressLine = document.createElement('div');
+    addressWindow.appendChild(addressLine);
+    ['Talked - Signed', 'Talked - Did Not Sign', 'Flyer', 'Skipped'].forEach((status) => {
+        let button = document.createElement('button');
+        button.textContent = status;
+        button.addEventListener('click', () => {
+            //status, route_id
+            let url = '/wp-admin/admin-ajax.php?action=lp_record_route_visit&formatted_address=' + encodeURIComponent(context.detectedAddress) + '&status=' + status;
+            // we should only append that if we detect the current position is inside the route's polygon.
+            url += '&route_id=' + route.id;
+            fetch(url)
+                .then(req => req.json())
+                .then(visitInfo => {
+                    drawVisits(map, visitInfo);
+                });
+        });
+        addressWindow.appendChild(button);
+    });
+
+    map.controls[google.maps.ControlPosition.BOTTOM_CENTER].push(addressWindow);
+
+    map.addListener('center_changed', () => {
+        if (!('centerMovedHandler' in context)) {
+            context.centerMovedHandler = setTimeout(detectAddressChange, 500);
+        }
+    });
+
+    function updateAddress(formatted_address) {
+        if (('detectedAddress' in context) && context.detectedAddress == formatted_address)
+            return;
+        addressLine.textContent = formatted_address;
+        context.detectedAddress = formatted_address;
+        // if we've visited this home already, we should show that status here too.
+    }
+
+    function detectAddressChange() {
+        let center = map.getCenter();
+        if (!('lastCenter' in context) || calculateDistance(center, context.lastCenter) >= minDist) {
+            context.lastCenter = center;
+            geocoder.geocode({ 'location': center }).then((response) => {
+                let address = response.results[0];
+                if (!('locationCircle' in context)) {
+                    context.locationCircleLarge = new google.maps.Circle({
+                        strokeColor: "#666666",
+                        strokeOpacity: 0.8,
+                        strokeWeight: 1,
+                        fillColor: "#666666",
+                        fillOpacity: 0.20,
+                        map,
+                        center: center,
+                        radius: 50,
+                    });
+                    // draw blue dot
+                    context.locationCircle = new google.maps.Circle({
+                        strokeColor: "#2222CC",
+                        strokeOpacity: 0.9,
+                        strokeWeight: 1,
+                        fillColor: "#2222CC",
+                        fillOpacity: 0.6,
+                        map,
+                        center: center,
+                        radius: 2,
+                    });
+                }
+                context.locationCircleLarge.setCenter(center);
+                context.locationCircle.setCenter(center);
+                updateAddress(address.formatted_address);
+            });
+        }
+        delete context.centerMovedHandler;
+    }
+
+    detectAddressChange();
+
+    if (!('geolocation' in navigator)) {
+        console.error('geolocation API not available');
+        return;
+    }
+    else {
+        // lock the map so that geolocation is responsible for moving it around
+        // OR detect when manually moved and then disable auto updates until they
+        // click 'Re-Center'
+        //map.setOptions({gestureHandling: "none", keyboardShortcuts: false});
+        map.addListener('drag', () => {
+            // Enable 'Re-Center' control.
+            // Disable geolocation auto updates
+
+        });
+    }
+    /*
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const pos = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+
+          infoWindow.setPosition(pos);
+          infoWindow.setContent("Location found.");
+          infoWindow.open(map);
+          map.setCenter(pos);
+        },
+        () => {
+          handleLocationError(true, infoWindow, map.getCenter());
+        }
+      );
+    
+    const watchID = navigator.geolocation.watchPosition((position) => {
+        doSomething(position.coords.latitude, position.coords.longitude);
+        });*/
+}
+
+function exitRoute() {
+
 }

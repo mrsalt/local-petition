@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.41';
+$lp_db_version = '1.42';
 
 function lp_db_install()
 {
@@ -139,6 +139,18 @@ function lp_db_install()
 		south decimal(10,7),
 		status ENUM ('Unassigned','Assigned','Complete') NOT NULL DEFAULT 'Unassigned',
 		PRIMARY KEY  (id)
+	) $charset_collate;";
+	dbDelta($sql);
+
+	$table_name = $wpdb->prefix . 'lp_residence_visit';
+	$sql = "CREATE TABLE $table_name (
+		campaign_id mediumint(9) NOT NULL,
+		address_id mediumint(9),
+		created timestamp DEFAULT CURRENT_TIMESTAMP,
+		created_by_wp_user_id mediumint(9) NOT NULL,
+		route_id mediumint(9) NULL,
+		status ENUM ('Talked - Signed','Talked - Did Not Sign','Flyer','Skipped') NOT NULL,
+		PRIMARY KEY  (campaign_id, address_id)
 	) $charset_collate;";
 	dbDelta($sql);
 

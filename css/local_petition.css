@@ -170,6 +170,20 @@ button.assignee-button {
     width: 100%;
 }
 
+div.visit-window {
+    width: 250px;
+    border: 1px solid gray;
+    padding: 8px;
+    background-color: white;
+    font-size: small;
+}
+
+div.visit-window button {
+    margin: 2px;
+    font-size: x-small;
+    width: 100%;
+}
+
 /* admin styles */
 
 table.lp-table, th.lp-table-header, td.lp-table-data {
