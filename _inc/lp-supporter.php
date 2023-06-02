@@ -9,7 +9,8 @@ function lp_supporter_map($atts = [], $content = null)
     list($latStep, $lngStep) = explode(",", $atts['gridstep']);
     $minSupporters = array_key_exists('minsupporters', $atts) ? $atts['minsupporters'] : 'null';
     $extra_script = ".then(() => { addMapSupporterOverlays(document.getElementById('$id'), $gridLat, $gridLng, $latStep, $lngStep, $minSupporters) })";
-    return lp_create_map_element($id, 'supporter-map', is_user_logged_in(), $atts['lat'], $atts['lng'], $atts['zoom'], $extra_script);
+    $mapId = '8c6c1d4242e1a575';
+    return lp_create_map_element($id, 'supporter-map', is_user_logged_in(), $atts['lat'], $atts['lng'], $atts['zoom'], $mapId, $extra_script);
 }
 
 function lp_get_supporters_map_coordinates_json_handler()

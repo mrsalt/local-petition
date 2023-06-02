@@ -140,7 +140,7 @@ function drawSupporterGrid(squares, element, supporters, minSupporters) {
             { lat: p.south, lng: p.west },
             { lat: p.north, lng: p.west },
         ];
-        feature = element.map.data.add({ geometry: new google.maps.Data.Polygon([coords]) });
+        let feature = element.map.data.add({ geometry: new google.maps.Data.Polygon([coords]) });
         feature.setProperty('count', square.count);
         if (square.count > maxPerSquare)
             maxPerSquare = square.count;
@@ -151,6 +151,7 @@ function drawSupporterGrid(squares, element, supporters, minSupporters) {
     let maxColor = new Color(160, 50, 50);
     let minColor = new Color(50, 50, 160);
     element.map.data.setStyle(function (feature) {
+        let color = null;
         if (minPerSquare === maxPerSquare)
             color = minColor.toCSS();
         else
