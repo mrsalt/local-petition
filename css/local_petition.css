@@ -176,12 +176,19 @@ div.visit-window {
     padding: 8px;
     background-color: white;
     font-size: small;
+    border-radius: 4px;
 }
 
 div.visit-window button {
     margin: 2px;
     font-size: x-small;
     width: 100%;
+}
+
+button.recenter-control {
+    height: 30px;
+    width: 30px;
+    border-radius: 4px;
 }
 
 /* admin styles */

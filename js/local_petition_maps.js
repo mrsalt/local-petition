@@ -608,10 +608,12 @@ function startRoute(map, route) {
         existingRoutesContainer.style.display = 'None';
     }
 
-    //TODO:
-    // map will raise event when location changes, location changing will cause geocoding to take place
-    // add window that shows current detected address, with controls to indicate if 'Y' signed or 'N' did not sign, 'F' left flyer, 'X' did not leave flyer or talk
-    // should manually panning the map disable automatic geocoding?  can manually panning be disabled?
+    // 1. map will raise 'center_changed' event when location changes.  Location changing can be user driven through
+    //    a drag event, or can be the result of gelocation API callback changing the map's center.
+    // 2. 'center_changed' will cause geocoding to take place, if the map moves far enough.
+    // 3. A window will show the current detected address, and add buttons to record visit at this address.
+    //    Buttons will enable following states to be recorded 'Y' signed or 'N' did not sign, 'F' left flyer, 'X' did not leave flyer or talk
+    // 4. Manually panning the map will disable automatic geocoding.  However, automatic geocoding can be reenabled.
     // add blue dot for current location.  map will center on current location automatically.
     // add 'Exit Route' button
 
@@ -631,7 +633,8 @@ function startRoute(map, route) {
             //status, route_id
             let url = '/wp-admin/admin-ajax.php?action=lp_record_route_visit&formatted_address=' + encodeURIComponent(context.detectedAddress) + '&status=' + status;
             // we should only append that if we detect the current position is inside the route's polygon.
-            url += '&route_id=' + route.id;
+            if (route)
+                url += '&route_id=' + route.id;
             fetch(url)
                 .then(req => req.json())
                 .then(visitInfo => {
@@ -640,7 +643,6 @@ function startRoute(map, route) {
         });
         addressWindow.appendChild(button);
     });
-
     map.controls[google.maps.ControlPosition.BOTTOM_CENTER].push(addressWindow);
 
     map.addListener('center_changed', () => {
@@ -700,38 +702,47 @@ function startRoute(map, route) {
         console.error('geolocation API not available');
         return;
     }
-    else {
-        // lock the map so that geolocation is responsible for moving it around
-        // OR detect when manually moved and then disable auto updates until they
-        // click 'Re-Center'
-        //map.setOptions({gestureHandling: "none", keyboardShortcuts: false});
-        map.addListener('drag', () => {
-            // Enable 'Re-Center' control.
-            // Disable geolocation auto updates
 
+    function autoUpdateMap() {
+        context.watchID = navigator.geolocation.watchPosition((position) => {
+            const pos = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+            };
+            map.setCenter(pos);
         });
     }
-    /*
+
     navigator.geolocation.getCurrentPosition(
         (position) => {
-          const pos = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
-
-          infoWindow.setPosition(pos);
-          infoWindow.setContent("Location found.");
-          infoWindow.open(map);
-          map.setCenter(pos);
+            const pos = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+            };
+            map.setCenter(pos);
+            autoUpdateMap();
         },
         () => {
-          handleLocationError(true, infoWindow, map.getCenter());
+            console.error('Error getting position');
         }
-      );
-    
-    const watchID = navigator.geolocation.watchPosition((position) => {
-        doSomething(position.coords.latitude, position.coords.longitude);
-        });*/
+    );
+
+    let recenterControl = document.createElement('button');
+    recenterControl.classList.add('recenter-control');
+    recenterControl.textContent = '⌖';
+    recenterControl.addEventListener('click', () => {
+        recenterControl.style.display = 'none';
+        autoUpdateMap();
+    });
+    map.controls[google.maps.ControlPosition.LEFT_CENTER].push(recenterControl);
+    map.addListener('drag', () => {
+        // Enable 'Re-Center' control.
+        recenterControl.style.display = '';
+        // Disable geolocation auto updates
+        if ('watchID' in context)
+            navigator.geolocation.clearWatch(context.watchID);
+    });
+
 }
 
 function exitRoute() {
