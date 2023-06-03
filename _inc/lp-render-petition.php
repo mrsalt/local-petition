@@ -123,8 +123,7 @@ function lp_attempt_submit($style, &$continue_form_render)
             $_POST['title'] = $signer->title;
             if ($signer->is_helper) $_POST['is_helper'] = true;
             if ($signer->share_granted) $_POST['is_share'] = true;
-            $_POST['age'] = $signer->age;
-
+            $_POST['age'.urlencode($signer->name)] = $signer->age;
             //$content .= '<div>$_POST:<pre>' . var_export($_POST, true) . '</pre></div>';
         }
 
@@ -150,19 +149,21 @@ function lp_attempt_submit($style, &$continue_form_render)
             'comments'            => $_POST['comments'],
             'is_supporter'        => $_POST['is_supporter'] == 'true' ? 1 : 0,
             'share_granted'       => array_key_exists('is_share', $_POST) ? 1 : 0,
-            'is_helper'           => array_key_exists('is_helper', $_POST) ? 1 : 0,
-            'age'                 => $_POST['age']
+            'is_helper'           => array_key_exists('is_helper', $_POST) ? 1 : 0
         );
 
         $values = array_merge($_SESSION['lp_petition_step_1'], $step_2);
         $sensitive_info_changed = false;
 
-        if (is_user_logged_in() && str_contains($values['name'], ',')) {
+        if (str_contains($values['name'], ',')) {
             foreach (explode(',', $values['name']) as $name) {
                 $values['name'] = trim($name);
+                $values['age'] = $_POST['age'.urlencode($values['name'])];
                 $signer = sign_petition($values, $sensitive_info_changed);
             }
         } else {
+            $name = trim($values['name']);
+            $values['age'] = $_POST['age'.urlencode($name)];
             $signer = sign_petition($values, $sensitive_info_changed);
         }
 
@@ -184,7 +185,7 @@ function lp_attempt_submit($style, &$continue_form_render)
         if (!$continue_form_render) {
             $content .= '<div id="post-submit">';
             if ($values['is_supporter']) {
-                $content .= '<p style="font-size: xx-large">' . $signer->name . ', thank you for signing our petition!</p>';
+                $content .= '<p style="font-size: xx-large">' . $_SESSION['lp_petition_step_1']['name'] . ', thank you for signing our petition!</p>';
             } else {
                 $content .= '<p>' . $signer->name . ', thank you for your feedback.  We\'re sorry to hear that you don\'t support this initiative.';
                 if (strlen($values['comments']) > 5) {
@@ -343,11 +344,20 @@ function lp_render_petition_form($style, $content, $step, $signer = null)
         $is_supporter = $_POST['is_supporter'] ?? 'true';
         $content .= '<label><input type="radio" name="is_supporter" value="true"' . ($is_supporter == 'true' ? ' checked' : '') . '> Yes, I\'m a supporter</label><br>';
         $content .= '<label><input type="radio" name="is_supporter" value="false"' . ($is_supporter == 'false' ? ' checked' : '') . '> No, I\'m not a supporter</input></label></p>';
-        $content .= '<p>What is your age?<br>';
-        $age = $_POST['age'] ?? (is_user_logged_in() ? '18+' : null);
-        $content .= '<label><input type="radio" name="age" required="true" value="&lt; 13"' . ($age == '< 13' ? ' checked' : '') . '> &lt; 13</label><br>';
-        $content .= '<label><input type="radio" name="age" required="true" value="13 - 17"' . ($age == '13 - 17' ? ' checked' : '') . '> 13 - 17</input></label><br>';
-        $content .= '<label><input type="radio" name="age" required="true" value="18+"' . ($age == '18+' ? ' checked' : '') . '> 18+</input></label></p>';
+        $names = explode(',', $_POST['signer_name']);
+        foreach ($names as $name) {
+            $name = trim($name);
+            $field_name = 'age' . urlencode($name);
+            $age = $_POST[$field_name] ?? (is_user_logged_in() ? '18+' : null);
+            if (count($names) > 1) {
+                $content .= '<p>What is ' . $name . '\'s age?<br>';
+            } else {
+                $content .= '<p>What is your age?<br>';
+            }
+            $content .= '<label><input type="radio" name="' . $field_name . '" required="true" value="&lt; 13"' . ($age == '< 13' ? ' checked' : '') . '> &lt; 13</label><br>';
+            $content .= '<label><input type="radio" name="' . $field_name . '" required="true" value="13 - 17"' . ($age == '13 - 17' ? ' checked' : '') . '> 13 - 17</input></label><br>';
+            $content .= '<label><input type="radio" name="' . $field_name . '" required="true" value="18+"' . ($age == '18+' ? ' checked' : '') . '> 18+</input></label></p>';
+        }
         $content .= '<p>~~ Optional Information ~~</p>';
         $content .= '<p>' . get_textarea('Comments', 'comments', style: $style) . '</p>';
         if ($_SESSION['campaign']->comment_suggestion)
@@ -395,6 +405,7 @@ function add_bulk_sign_inputs($campaign_id)
     $content .= '</select>';
     $content .= '</p>';
     $content .= '<p>Date Collected: <input type="text" name="proxy_date" required="true" placeholder="YYYY-MM-DD" value="' . $proxy_date . '">';
+    $content .= '<p><i>Tip: multiple names can be input at once.  Put a comma between each name.</i></p>';
     $content .= '</div>';
     if (array_key_exists('city', $_POST)) {
         $_SESSION['city'] = $_POST['city'];
