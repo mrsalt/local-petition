@@ -16,6 +16,15 @@ function lp_admin_menu()
         '', //plugins_url( 'myplugin/images/icon.png' ),
         null //6
     );
+    add_menu_page(
+        __('Route Map', 'textdomain'),
+        'Route Map',
+        'read',
+        'lp-route-map',
+        'lp_route_map_redirect',
+        plugins_url('local-petition/images/map-icon-28x22.png'),
+        null //6
+    );
 }
 
 function lp_admin_bar_menu(WP_Admin_Bar $admin_bar)
@@ -40,6 +49,24 @@ function lp_admin_bar_menu(WP_Admin_Bar $admin_bar)
             'title' => __('Approve new signers so they will become visible on the site', 'textdomain'), //This title will show on hover
         ]
     ));
+
+    $admin_bar->add_menu(array(
+        'id'    => 'lp-route-map-admin-bar',
+        'parent' => null,
+        'group'  => null,
+        'title' => '<img style="padding-top: 4px" src="' . plugins_url('local-petition/images/map-icon-28x22.png') . '"> Route Map', //you can use img tag with image link. it will show the image icon Instead of the title.
+        'href'  => esc_url('/west-boise/route-map'),
+        'meta' => [
+            'title' => __('Go to route map to record visits', 'textdomain'), //This title will show on hover
+        ]
+    ));
+}
+
+function lp_route_map_redirect()
+{
+    //$page = get_page_by_title('petition-map');
+    //wp_redirect(get_permalink($page->ID));
+    echo ("<script>window.location = '/west-boise/route-map'</script>");
 }
 
 /*

@@ -219,15 +219,17 @@ async function addMapRoutes(element) {
                 }, 1000);
             });
             element.map.addListener('zoom_changed', () => {
-                let oldZoom = JSON.parse(localStorage.getItem(element.id + '-zoom'));
-                let newFontSize = getTextSizeForZoomLevel(element.map.getZoom());
-                if (oldZoom && getTextSizeForZoomLevel(oldZoom) != newFontSize) {
-                    for (const route of routeData.routes) {
-                        route.mapNumber.then((marker) => { marker.content.style.fontSize = newFontSize })
-                    }
-                }
                 let zoom = JSON.stringify(element.map.getZoom());
                 localStorage.setItem(element.id + '-zoom', zoom);
+                let newFontSize = getTextSizeForZoomLevel(element.map.getZoom(), 1.5);
+                //console.log('new font size for marker for zoom level ' + zoom + ': ' + newFontSize);
+                for (const route of routeData.routes) {
+                    route.mapNumber.then((marker) => { marker.content.style.fontSize = newFontSize })
+                }
+                newFontSize = getTextSizeForZoomLevel(element.map.getZoom(), 1.0);
+                for (const visit of visitData.visits) {
+                    visit.marker.then((marker) => { marker.content.style.fontSize = newFontSize })
+                }
             });
             const drawingManager = new google.maps.drawing.DrawingManager(managerOptions);
             drawingManager.setMap(element.map);
@@ -267,15 +269,27 @@ function findCenterOf(path) {
     return { lng: (east + west) / 2.0, lat: (north + south) / 2.0 };
 }
 
-function getTextSizeForZoomLevel(level) {
-    return level > 16 ? '30px' : '18px';
+function getTextSizeForZoomLevel(level, scale = 1.0) {
+    let size;
+    switch (level) {
+        case 20: size = 48; break;
+        case 19: size = 36; break;
+        case 18: size = 30; break;
+        case 17: size = 24; break;
+        case 16: size = 18; break;
+        case 15: size = 14; break;
+        case 14: size = 10; break;
+        case 13: size = 6; break;
+        default: size = 4; break;
+    }
+    return '' + Math.round(size * scale) + 'px';
 }
 
 async function placeNumber(number, map, position) {
     const { AdvancedMarkerElement } = await google.maps.importLibrary("marker")
     let el = document.createElement('div')
     el.textContent = number;
-    el.style.fontSize = getTextSizeForZoomLevel(map.getZoom());
+    el.style.fontSize = getTextSizeForZoomLevel(map.getZoom(), 1.5);
     el.style.fontWeight = 'bold';
     el.style.color = 'black';
     let marker = new AdvancedMarkerElement({ content: el, gmpDraggable: true, map: map, position: position });
