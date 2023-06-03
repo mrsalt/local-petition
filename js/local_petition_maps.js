@@ -575,23 +575,19 @@ function calculateDistance(a, b) {
     return Math.sqrt(latDelta * latDelta + lngDelta * lngDelta);
 }
 
+function abbreviationForStatus(status) {
+    switch (status) {
+        case 'Talked - Signed': return 'Y';
+        case 'Talked - Did Not Sign': return 'N';
+        case 'Flyer': return 'F';
+        case 'Skipped': return 'X';
+    }
+}
+
 async function placeVisit(visit, map) {
     const { AdvancedMarkerElement } = await google.maps.importLibrary("marker")
-    let el = document.createElement('div')
-    switch (visit.status) {
-        case 'Talked - Signed':
-            el.textContent = 'Y';
-            break;
-        case 'Talked - Did Not Sign':
-            el.textContent = 'N';
-            break;
-        case 'Flyer':
-            el.textContent = 'F';
-            break;
-        case 'Skipped':
-            el.textContent = 'X';
-            break;
-    }
+    let el = document.createElement('div');
+    el.textContent = abbreviationForStatus(visit.status);
     el.style.fontSize = getTextSizeForZoomLevel(map.getZoom());
     el.style.fontWeight = 'bold';
     let marker = new AdvancedMarkerElement({ content: el, gmpDraggable: false, map: map, position: { lat: visit.latitude, lng: visit.longitude } });
@@ -644,7 +640,7 @@ function startRoute(map, route) {
     addressWindow.appendChild(addressLine);
     ['Talked - Signed', 'Talked - Did Not Sign', 'Flyer', 'Skipped'].forEach((status) => {
         let button = document.createElement('button');
-        button.textContent = status;
+        button.textContent = status + ' (' + abbreviationForStatus(status) + ')';
         button.addEventListener('click', () => {
             //status, route_id
             let url = '/wp-admin/admin-ajax.php?action=lp_record_route_visit&formatted_address=' + encodeURIComponent(context.detectedAddress) + '&status=' + status;
