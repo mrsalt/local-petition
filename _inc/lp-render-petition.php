@@ -143,7 +143,6 @@ function lp_attempt_submit($style, &$continue_form_render)
         );
         $content = lp_render_petition_form($style, $content, 2, $signer);
     } else {
-        $table_name = $wpdb->prefix . 'lp_signer';
 
         $step_2 = array(
             'campaign_id'         => $_SESSION['campaign']->id,
@@ -156,87 +155,22 @@ function lp_attempt_submit($style, &$continue_form_render)
         );
 
         $values = array_merge($_SESSION['lp_petition_step_1'], $step_2);
-
-        $signer = get_signer($_SESSION['campaign']->id, $values['name'], $values['address_id']);
-
         $sensitive_info_changed = false;
-        if (!$signer) {
-            $wpdb->insert($table_name, $values);
+
+        if (is_user_logged_in() && str_contains($values['name'], ',')) {
+            foreach (explode(',', $values['name']) as $name) {
+                $values['name'] = trim($name);
+                $signer = sign_petition($values, $sensitive_info_changed);
+            }
         } else {
-            // Since we're not (currently) requiring authentication to make changes, record the changes are are being submitted
-            // to be able to detect if anything unusual is happening.
-            foreach ($values as $key => $value) {
-                if ($value !== $signer->$key) {
-                    //$content .= '<div>Recording change to field ' . $key . ', old value: ' . $signer->$key . ' (' . gettype($signer->$key) . '), new value: ' . $value . ' (' . gettype($value) . ')</div>';
-                    if (in_array($key, array('title', 'comments')))
-                        $sensitive_info_changed = true;
-                    record_update($table_name, $key, $signer->id, $signer->$key);
-                }
-            }
-            $wpdb->update($table_name, $values, array('id' => $signer->id));
+            $signer = sign_petition($values, $sensitive_info_changed);
         }
 
-        if (!$signer) {
-            $signer = get_signer($_SESSION['campaign']->id, $values['name'], $values['address_id']);
-            if (!$signer) {
-                throw new Exception('Failed to upsert ' . $table_name);
-            }
-            if (is_user_logged_in()) {
-                if ($_SESSION['is_proxy']) {
-                    $table_name = $wpdb->prefix . 'lp_proxy_signature';
-                    $result = $wpdb->insert($table_name, array(
-                        'campaign_id' => $_SESSION['campaign']->id,
-                        'collected_by' => $_SESSION['proxy_id'],
-                        'signer_id' => $signer->id,
-                        'wp_user_id' => wp_get_current_user()->ID,
-                        'sign_date' => $_SESSION['proxy_date']
-                    ));
-                    if ($result === false) {
-                        throw new Exception('Failed to insert into ' . $table_name);
-                    }
-                }
-            }
-        }
-
-        if (isset($_FILES['photo']) && $_FILES['photo']['tmp_name']) {
-            $file = $_FILES['photo'];
-
-            $type = $file['type'];
-            if ($type !== 'image/jpeg') {
-                $content .= '<div class="submit-error">Photo should be a .jpg file</div>';
-                $continue_form_render = true;
-                return $content;
-            }
-
-            $tmp_path = $file['tmp_name'];
-
-            $upload_dir = wp_upload_dir();
-            $upload_dir = $upload_dir['basedir'] . '/local-petition/' . $_SESSION['campaign']->slug . '/' . $signer->id . '/';
-            if (!is_dir($upload_dir)) {
-                if (!mkdir($upload_dir, 01777, true)) throw new Exception('Failed to mkdir ' . $upload_dir);
-            }
-            $final_path = $upload_dir . $file['name'];
-
-            $result = move_uploaded_file($tmp_path, $final_path);
-            if (!$result)
-                throw new Exception('Failed to move uploaded file: ' . var_export($_FILES, true));
-
-            $result = $wpdb->update(
-                $table_name,
-                array(
-                    'photo_file' => $file['name'],
-                    'photo_file_type' => $file['type']
-                ),
-                array('id' => $signer->id)
-            );
-            if ($result === false) {
-                throw new Exception('Failed to update ' . $table_name . ' with photo file.  $signer = ' . var_export($signer, true) . ', $file = ' . var_export($file, true));
-            }
-            $sensitive_info_changed = true;
-            $signer->photo_file = $file['name'];
-        }
+        store_uploaded_image($signer, $content, $continue_form_render, $sensitive_info_changed);
 
         if ($sensitive_info_changed) {
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'lp_signer';
             $result = $wpdb->update(
                 $table_name,
                 array('status' => 'Unreviewed'),
@@ -274,6 +208,96 @@ function lp_attempt_submit($style, &$continue_form_render)
         }
     }
     return $content;
+}
+
+function sign_petition($values, &$sensitive_info_changed)
+{
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'lp_signer';
+    $signer = get_signer($_SESSION['campaign']->id, $values['name'], $values['address_id']);
+
+    $sensitive_info_changed = false;
+    if (!$signer) {
+        $wpdb->insert($table_name, $values);
+    } else {
+        // Since we're not (currently) requiring authentication to make changes, record the changes are are being submitted
+        // to be able to detect if anything unusual is happening.
+        foreach ($values as $key => $value) {
+            if ($value !== $signer->$key) {
+                //$content .= '<div>Recording change to field ' . $key . ', old value: ' . $signer->$key . ' (' . gettype($signer->$key) . '), new value: ' . $value . ' (' . gettype($value) . ')</div>';
+                if (in_array($key, array('title', 'comments')))
+                    $sensitive_info_changed = true;
+                record_update($table_name, $key, $signer->id, $signer->$key);
+            }
+        }
+        $wpdb->update($table_name, $values, array('id' => $signer->id));
+    }
+
+    if (!$signer) {
+        $signer = get_signer($_SESSION['campaign']->id, $values['name'], $values['address_id']);
+        if (!$signer) {
+            throw new Exception('Failed to upsert ' . $table_name);
+        }
+        if (is_user_logged_in()) {
+            if ($_SESSION['is_proxy']) {
+                $table_name = $wpdb->prefix . 'lp_proxy_signature';
+                $result = $wpdb->insert($table_name, array(
+                    'campaign_id' => $_SESSION['campaign']->id,
+                    'collected_by' => $_SESSION['proxy_id'],
+                    'signer_id' => $signer->id,
+                    'wp_user_id' => wp_get_current_user()->ID,
+                    'sign_date' => $_SESSION['proxy_date']
+                ));
+                if ($result === false) {
+                    throw new Exception('Failed to insert into ' . $table_name);
+                }
+            }
+        }
+    }
+    return $signer;
+}
+
+function store_uploaded_image(&$signer, &$content, &$continue_form_render, &$sensitive_info_changed)
+{
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'lp_signer';
+    if (isset($_FILES['photo']) && $_FILES['photo']['tmp_name']) {
+        $file = $_FILES['photo'];
+
+        $type = $file['type'];
+        if ($type !== 'image/jpeg') {
+            $content .= '<div class="submit-error">Photo should be a .jpg file</div>';
+            $continue_form_render = true;
+            return $content;
+        }
+
+        $tmp_path = $file['tmp_name'];
+
+        $upload_dir = wp_upload_dir();
+        $upload_dir = $upload_dir['basedir'] . '/local-petition/' . $_SESSION['campaign']->slug . '/' . $signer->id . '/';
+        if (!is_dir($upload_dir)) {
+            if (!mkdir($upload_dir, 01777, true)) throw new Exception('Failed to mkdir ' . $upload_dir);
+        }
+        $final_path = $upload_dir . $file['name'];
+
+        $result = move_uploaded_file($tmp_path, $final_path);
+        if (!$result)
+            throw new Exception('Failed to move uploaded file: ' . var_export($_FILES, true));
+
+        $result = $wpdb->update(
+            $table_name,
+            array(
+                'photo_file' => $file['name'],
+                'photo_file_type' => $file['type']
+            ),
+            array('id' => $signer->id)
+        );
+        if ($result === false) {
+            throw new Exception('Failed to update ' . $table_name . ' with photo file.  $signer = ' . var_export($signer, true) . ', $file = ' . var_export($file, true));
+        }
+        $sensitive_info_changed = true;
+        $signer->photo_file = $file['name'];
+    }
 }
 
 function get_signer($campaign_id, $name, $address_id)
