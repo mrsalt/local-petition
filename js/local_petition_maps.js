@@ -271,6 +271,7 @@ function findCenterOf(path) {
 
 function getTextSizeForZoomLevel(level, scale = 1.0) {
     let size;
+    level = Math.round(level);
     switch (level) {
         case 20: size = 48; break;
         case 19: size = 36; break;
