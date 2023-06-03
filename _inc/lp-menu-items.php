@@ -33,28 +33,30 @@ function lp_admin_bar_menu(WP_Admin_Bar $admin_bar)
         return;
     }
 
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'lp_signer';
-    $query = "SELECT COUNT(*) AS count FROM `$table_name` WHERE status = 'Unreviewed'";
-    $result = $wpdb->get_results($query);
-    $count = $result[0]->count;
+    if (current_user_can('moderate_comments')) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'lp_signer';
+        $query = "SELECT COUNT(*) AS count FROM `$table_name` WHERE status = 'Unreviewed'";
+        $result = $wpdb->get_results($query);
+        $count = $result[0]->count;
 
-    $admin_bar->add_menu(array(
-        'id'    => 'lp-review-new-signers',
-        'parent' => null,
-        'group'  => null,
-        'title' => 'Review New Signers (' . $count . ')', //you can use img tag with image link. it will show the image icon Instead of the title.
-        'href'  => admin_url('admin.php?page=lp-review-signers&Status=Unreviewed'),
-        'meta' => [
-            'title' => __('Approve new signers so they will become visible on the site', 'textdomain'), //This title will show on hover
-        ]
-    ));
+        $admin_bar->add_menu(array(
+            'id'    => 'lp-review-new-signers',
+            'parent' => null,
+            'group'  => null,
+            'title' => 'Review New Signers (' . $count . ')', //you can use img tag with image link. it will show the image icon Instead of the title.
+            'href'  => admin_url('admin.php?page=lp-review-signers&Status=Unreviewed'),
+            'meta' => [
+                'title' => __('Approve new signers so they will become visible on the site', 'textdomain'), //This title will show on hover
+            ]
+        ));
+    }
 
     $admin_bar->add_menu(array(
         'id'    => 'lp-route-map-admin-bar',
         'parent' => null,
         'group'  => null,
-        'title' => '<img style="padding-top: 4px" src="' . plugins_url('local-petition/images/map-icon-28x22.png') . '"> Route Map', //you can use img tag with image link. it will show the image icon Instead of the title.
+        'title' => '<img style="top: 4px; position: relative" src="' . plugins_url('local-petition/images/map-icon-28x22.png') . '"/> Route Map', //you can use img tag with image link. it will show the image icon Instead of the title.
         'href'  => esc_url('/west-boise/route-map'),
         'meta' => [
             'title' => __('Go to route map to record visits', 'textdomain'), //This title will show on hover
