@@ -767,6 +767,8 @@ function startRoute(map, route) {
         return;
     }
 
+    const geolocationOptions = { enableHighAccuracy: true };
+
     function autoUpdateMap() {
         //recenterControl.style.display = 'none';
         recenterControl.disabled = true;
@@ -778,7 +780,7 @@ function startRoute(map, route) {
                 lng: position.coords.longitude,
             };
             map.setCenter(pos);
-        });
+        }, undefined, geolocationOptions);
     }
 
     function stopAutoUpdateMap() {
@@ -802,10 +804,7 @@ function startRoute(map, route) {
             };
             map.setCenter(pos);
             autoUpdateMap();
-        },
-        () => {
-            console.error('Error getting position');
-        }
+        }, undefined, geolocationOptions
     );
 
     recenterControl = document.createElement('button');
