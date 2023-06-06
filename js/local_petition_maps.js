@@ -585,8 +585,10 @@ function abbreviationForStatus(status) {
 }
 
 async function placeVisit(visit, map) {
-    const { AdvancedMarkerElement } = await google.maps.importLibrary("marker")
+    const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
     let el = document.createElement('div');
+    el.style.position = 'relative';
+    el.style.top = '20px';
     el.textContent = abbreviationForStatus(visit.status);
     el.style.fontSize = getTextSizeForZoomLevel(map.getZoom());
     el.style.fontWeight = 'bold';
@@ -638,6 +640,17 @@ function startRoute(map, route) {
     addressWindow.classList.add('visit-window');
     let addressLine = document.createElement('div');
     addressWindow.appendChild(addressLine);
+
+    let buttonCount = 0;
+    let buttonRow;
+    function addVisitWindowButton(button) {
+        if (buttonCount++ % 2 == 0) {
+            buttonRow = document.createElement('div');
+            addressWindow.appendChild(buttonRow);
+        }
+        buttonRow.appendChild(button);
+    }
+
     ['Talked - Signed', 'Talked - Did Not Sign', 'Flyer', 'Skipped'].forEach((status) => {
         let button = document.createElement('button');
         button.textContent = status + ' (' + abbreviationForStatus(status) + ')';
@@ -653,17 +666,18 @@ function startRoute(map, route) {
                     drawVisits(map, visitInfo);
                 });
         });
-        addressWindow.appendChild(button);
+        addVisitWindowButton(button);
     });
     map.controls[google.maps.ControlPosition.BOTTOM_CENTER].push(addressWindow);
 
     map.addListener('center_changed', () => {
-        if (!('centerMovedHandler' in context)) {
-            context.centerMovedHandler = setTimeout(detectAddressChange, 500);
+        drawPositionIndicator();
+        if (!context.isDragging && !('addressChangeTimer' in context)) {
+            context.addressChangeTimer = setTimeout(detectAddressChange, 250);
         }
     });
 
-    function updateAddress(formatted_address) {
+    function updateAddress(formatted_address, is_valid) {
         if (('detectedAddress' in context) && context.detectedAddress == formatted_address)
             return;
         addressLine.textContent = formatted_address;
@@ -673,49 +687,91 @@ function startRoute(map, route) {
 
     function detectAddressChange() {
         let center = map.getCenter();
+        console.log('detectAddressChange called');
         if (!('lastCenter' in context) || calculateDistance(center, context.lastCenter) >= minDist) {
             context.lastCenter = center;
+            updateAddress('Calculating...', false);
+            console.log('geocoding location -> address');
             geocoder.geocode({ 'location': center }).then((response) => {
                 let address = response.results[0];
-                if (!('locationCircle' in context)) {
-                    context.locationCircleLarge = new google.maps.Circle({
-                        strokeColor: "#666666",
-                        strokeOpacity: 0.8,
-                        strokeWeight: 1,
-                        fillColor: "#666666",
-                        fillOpacity: 0.20,
-                        map,
-                        center: center,
-                        radius: 50,
-                    });
-                    // draw blue dot
-                    context.locationCircle = new google.maps.Circle({
-                        strokeColor: "#2222CC",
-                        strokeOpacity: 0.9,
-                        strokeWeight: 1,
-                        fillColor: "#2222CC",
-                        fillOpacity: 0.6,
-                        map,
-                        center: center,
-                        radius: 2,
-                    });
-                }
-                context.locationCircleLarge.setCenter(center);
-                context.locationCircle.setCenter(center);
-                updateAddress(address.formatted_address);
+                console.log('updating address to ' + address.formatted_address);
+                updateAddress(address.formatted_address, true);
+            }).catch(() => {
+                updateAddress('--', false);
             });
         }
-        delete context.centerMovedHandler;
+        delete context.addressChangeTimer;
     }
 
     detectAddressChange();
 
+    function drawPositionIndicator() {
+        const center = map.getCenter();
+        const style = 'watchID' in context ? 'GPS_Circle' : 'Crosshair';
+        if (style === 'GPS_Circle') {
+            if (!('locationCircle' in context)) {
+                context.locationCircleLarge = new google.maps.Circle({
+                    strokeColor: "#666666",
+                    strokeOpacity: 0.8,
+                    strokeWeight: 1,
+                    fillColor: "#666666",
+                    fillOpacity: 0.20,
+                    map,
+                    center: center,
+                    radius: 50,
+                    clickable: false
+                });
+                // draw blue dot
+                context.locationCircle = new google.maps.Circle({
+                    strokeColor: "#2222CC",
+                    strokeOpacity: 0.9,
+                    strokeWeight: 1,
+                    fillColor: "#2222CC",
+                    fillOpacity: 0.6,
+                    map,
+                    center: center,
+                    radius: 2,
+                    clickable: false
+                });
+            }
+            context.locationCircleLarge.setCenter(center);
+            context.locationCircle.setCenter(center);
+        }
+        else if (style === 'Crosshair') {
+            if (!('crossHair' in context)) {
+                const image = {
+                    url: '/wp-content/plugins/local-petition/images/cross-hair-40x40.png',
+                    size: new google.maps.Size(40, 40),
+                    origin: new google.maps.Point(0, 0),
+                    anchor: new google.maps.Point(20, 20),
+                };
+                context.crossHair = new google.maps.Marker({
+                    map: map,
+                    icon: image,
+                    clickable: false
+                });
+            }
+            context.crossHair.setPosition(center);
+            //marker.bindTo('position', map, 'center');
+        }
+        if (context.crossHair) context.crossHair.setMap(style === 'Crosshair' ? map : null);
+        if (context.locationCircleLarge) context.locationCircleLarge.setMap(style === 'GPS_Circle' ? map : null);
+        if (context.locationCircle) context.locationCircle.setMap(style === 'GPS_Circle' ? map : null);
+    }
+
+    let recenterControl;
+
     if (!('geolocation' in navigator)) {
         console.error('geolocation API not available');
+        stopAutoUpdateMap();
         return;
     }
 
     function autoUpdateMap() {
+        //recenterControl.style.display = 'none';
+        recenterControl.disabled = true;
+        // this shouldn't happen, but don't call 'watchPosition' if we're already watching position.
+        if ('watchID' in context) return;
         context.watchID = navigator.geolocation.watchPosition((position) => {
             const pos = {
                 lat: position.coords.latitude,
@@ -723,6 +779,19 @@ function startRoute(map, route) {
             };
             map.setCenter(pos);
         });
+    }
+
+    function stopAutoUpdateMap() {
+        // Enable 'Re-Center' control.
+        //if (recenterControl) recenterControl.style.display = '';
+        recenterControl.disabled = false;
+        // Disable geolocation auto updates
+        if ('watchID' in context) {
+            navigator.geolocation.clearWatch(context.watchID);
+            delete context.watchID;
+        }
+        // Draw cross at center of the map
+        drawPositionIndicator();
     }
 
     navigator.geolocation.getCurrentPosition(
@@ -739,22 +808,28 @@ function startRoute(map, route) {
         }
     );
 
-    let recenterControl = document.createElement('button');
+    recenterControl = document.createElement('button');
     recenterControl.classList.add('recenter-control');
-    recenterControl.textContent = '⌖';
+    //recenterControl.textContent = '⌖';
+    recenterControl.innerHTML = '<svg viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">' +
+        '<circle cx="25" cy="25" r="20" fill="gray" fill-opacity="0.5" />' +
+        '<circle cx="25" cy="25" r="2" fill="blue" color="blue" />' +
+        '</svg>';
     recenterControl.addEventListener('click', () => {
-        recenterControl.style.display = 'none';
         autoUpdateMap();
     });
-    map.controls[google.maps.ControlPosition.LEFT_CENTER].push(recenterControl);
-    map.addListener('drag', () => {
-        // Enable 'Re-Center' control.
-        recenterControl.style.display = '';
-        // Disable geolocation auto updates
-        if ('watchID' in context)
-            navigator.geolocation.clearWatch(context.watchID);
-    });
 
+    addVisitWindowButton(recenterControl);
+    //map.controls[google.maps.ControlPosition.LEFT_CENTER].push(recenterControl);
+
+    map.addListener('dragstart', () => {
+        context.isDragging = true;
+        stopAutoUpdateMap();
+    });
+    map.addListener('dragend', () => {
+        context.isDragging = false;
+        detectAddressChange();
+    });
 }
 
 function exitRoute() {

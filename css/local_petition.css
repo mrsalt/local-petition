@@ -171,7 +171,7 @@ button.assignee-button {
 }
 
 div.visit-window {
-    width: 250px;
+    width: 300px;
     border: 1px solid gray;
     padding: 8px;
     background-color: white;
@@ -179,16 +179,27 @@ div.visit-window {
     border-radius: 4px;
 }
 
+div.visit-window > address {
+    padding: 3px;
+}
+
 div.visit-window button {
-    margin: 2px;
+    margin: 1%;
     font-size: x-small;
-    width: 100%;
+    width: 48%;
+    padding: 7px;
 }
 
 button.recenter-control {
-    height: 30px;
-    width: 30px;
+    height: 35px;
+    width: 35px;
     border-radius: 4px;
+    padding: 2px;
+}
+
+button.recenter-control > svg {
+    width: 100%;
+    height: 100%;
 }
 
 /* admin styles */
