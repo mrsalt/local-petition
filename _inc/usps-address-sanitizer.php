@@ -72,7 +72,7 @@ function sanitize_address($address)
         'city' => simple_xml_parse($result, 'City'),
         'state' => simple_xml_parse($result, 'State'),
         'zip' => simple_xml_parse($result, 'Zip5'),
-        'zip_ext' => simple_xml_parse($result, 'Zip4')
+        'zip_ext' => simple_xml_parse($result, 'Zip4', false)
     );
 }
 
