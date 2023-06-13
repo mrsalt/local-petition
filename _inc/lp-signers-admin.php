@@ -161,14 +161,15 @@ function lp_review_signers()
     $hidden_columns = ['slug'];
     $header_output = false;
     $count = 0;
+    $show_form = array_key_exists('Status', $_GET);
 
     foreach ($result as $values) {
         if (!$header_output) {
             echo build_filters($unfiltered, $unique_values, $hidden_columns);
-            echo '<form method="post">';
+            if ($show_form) echo '<form method="post">';
             echo '<table class="lp-table">';
             echo '<tr class="lp-table-header-row">';
-            echo '<th></th>';
+            if ($show_form) echo '<th></th>';
             foreach ($values as $key => $value) {
                 if (in_array($key, $hidden_columns)) continue;
                 echo '<th class="lp-table-header">' . esc_html($key) . '</th>';
@@ -177,7 +178,8 @@ function lp_review_signers()
             $header_output = true;
         }
         echo '<tr class="lp-table-row' . ($count++ % 2 == 0 ? ' lp-even-row' : ' lp-odd-row') . '">';
-        echo '<td class="lp-table-data"><input type="checkbox" name="user-id[' . $values['ID'] . ']" checked></td>';
+        if ($show_form)
+            echo '<td class="lp-table-data"><input type="checkbox" name="user-id[' . $values['ID'] . ']" checked></td>';
         foreach ($values as $key => $value) {
             if (in_array($key, $hidden_columns)) continue;
             echo '<td class="lp-table-data">';
@@ -204,7 +206,7 @@ function lp_review_signers()
     echo '</table>';
 
     echo '<br/>';
-    if (array_key_exists('Status', $_GET)) {
+    if ($show_form) {
         echo '<div>Change status of selected to: <select name="new_status">' .
             '<option>Unreviewed</option>' .
             '<option>Approved</option>' .
