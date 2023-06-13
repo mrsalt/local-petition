@@ -95,7 +95,7 @@ function build_where($filters, $values = [])
     return $where;
 }
 
-function do_query($limit = null, $offset = 0, $count_only = false)
+function do_query($limit = null, $offset = 0, $apply_filters = true, $count_only = false)
 {
     global $wpdb;
 
@@ -106,8 +106,8 @@ function do_query($limit = null, $offset = 0, $count_only = false)
     $address_table = $wpdb->prefix . 'lp_address';
     $proxy_table = $wpdb->prefix . 'lp_proxy_signature';
     $wp_user_table = $wpdb->prefix . 'users';
-    $where = build_where($filters, ['CampaignStatus' => 'Active']);
     $query = "SELECT ";
+
     if ($count_only) {
         $query .= "COUNT(*) 'Count' ";
     } else {
@@ -121,8 +121,11 @@ function do_query($limit = null, $offset = 0, $count_only = false)
               JOIN `$address_table` address ON address.id = signer.address_id
               LEFT JOIN `$proxy_table` `proxy` ON `proxy`.signer_id = signer.id AND `proxy`.campaign_id = campaign.id
               LEFT JOIN `$table_name` signer_proxy ON signer_proxy.id = `proxy`.collected_by
-              LEFT JOIN `$wp_user_table` users ON users.id = `proxy`.wp_user_id
-              WHERE $where";
+              LEFT JOIN `$wp_user_table` users ON users.id = `proxy`.wp_user_id";
+    if ($apply_filters) {
+        $where = build_where($filters, ['CampaignStatus' => 'Active']);
+        $query .= " WHERE $where";
+    }
     if (!$count_only && $limit !== null) {
         $query .= " LIMIT $limit OFFSET $offset";
     }
@@ -148,24 +151,21 @@ function lp_review_signers()
         }
     }
 
-    $result = do_query(count_only: true);
-    $total = intval($result[0]->Count);
-    if ($total == 0) {
-        echo '<br><p>There are no users that match the current criteria.</p>';
-        return;
-    }
-    $limit = array_key_exists('limit', $_GET) ? $_GET['limit'] : 25;
+    $unfiltered = do_query(apply_filters: false);
+
+    $limit = array_key_exists('limit', $_GET) ? intval($_GET['limit']) : 25;
     $offset = array_key_exists('offset', $_GET) ? intval($_GET['offset']) : 0;
-    $result = do_query($limit, $offset, count_only: false);
+    $result = do_query($limit, $offset, apply_filters: true);
 
     $unique_values = ['ID', 'Created', 'Name', 'Photo', 'Title', 'Email', 'Phone', 'Comments', 'Line 1', 'Line 2'];
     $hidden_columns = ['slug'];
     $header_output = false;
     $count = 0;
-    echo '<form method="post">';
+
     foreach ($result as $values) {
         if (!$header_output) {
-            echo build_filters($result, $unique_values, $hidden_columns);
+            echo build_filters($unfiltered, $unique_values, $hidden_columns);
+            echo '<form method="post">';
             echo '<table class="lp-table">';
             echo '<tr class="lp-table-header-row">';
             echo '<th></th>';
@@ -195,16 +195,24 @@ function lp_review_signers()
         }
         echo '</tr>' . "\n";
     }
+    $result = do_query(count_only: true);
+    $total = intval($result[0]->Count);
+    if (count($result) == 0) {
+        echo '<br><p>There are no users that match the current criteria.</p>';
+        return;
+    }
     echo '</table>';
 
     echo '<br/>';
-    echo '<div>Change status of selected to: <select name="new_status">' .
-        '<option>Unreviewed</option>' .
-        '<option>Approved</option>' .
-        '<option>Quarantined</option>' .
-        '</select>';
-    echo ' ';
-    echo '<input type="submit">';
+    if (array_key_exists('Status', $_GET)) {
+        echo '<div>Change status of selected to: <select name="new_status">' .
+            '<option>Unreviewed</option>' .
+            '<option>Approved</option>' .
+            '<option>Quarantined</option>' .
+            '</select>';
+        echo ' ';
+        echo '<input type="submit"></div>';
+    }
     echo '</form>';
     echo '<div>' . $total . ' results</div>';
     echo '<div>Page ';
@@ -219,4 +227,10 @@ function lp_review_signers()
         }
     }
     echo '</div>';
+
+    echo '<div>Results per page: <select onchange="update_filter(\'limit\', this.value)">';
+    foreach (array(25, 50, 100, 250, 500, 1000) as $l) {
+        echo '<option value="' . $l . '"' . ($limit == $l ? ' selected' : '') . '>' . $l . '</option>';
+    }
+    echo '</select></div>';
 }

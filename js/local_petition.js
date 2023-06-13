@@ -212,6 +212,9 @@ function update_filter(filter, newValue) {
             search[key] = decodeURIComponent(value);
         }
     });
+    // when changing filters, clear any limit/offset
+    delete search.limit;
+    delete search.offset;
     if (!found) search[filter] = newValue;
     let searchString = '';
     let sep = '?';
