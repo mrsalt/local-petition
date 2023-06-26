@@ -330,7 +330,7 @@ function lp_render_petition_form($style, $content, $step, $signer = null)
         $content .= add_bulk_sign_inputs($_SESSION['campaign']->id);
     }
     if ($step == 1) {
-        $content .= '<p>' . get_input('Name', 'signer_name', required: true, max_chars: 50, style: $style, autofocus: is_user_logged_in()) . '</p>';
+        $content .= '<p>' . get_input('Name (if multiple, put comma between each name)', 'signer_name', required: true, max_chars: 80, style: $style, autofocus: is_user_logged_in(), placeholder: 'John Doe, Jane Doe') . '</p>';
         $content .= '<p>' . get_input('Address Line 1', 'line_1', required: true, max_chars: 40, style: $style) . '</p>';
         $content .= '<p>' . get_input('Address Line 2 (optional)', 'line_2', required: false, max_chars: 40, style: $style) . '</p>';
         $content .= '<p>' . get_input('City', 'city', required: true, max_chars: 20, style: $style) . '</p>';
