@@ -68,6 +68,7 @@ require_once('_inc/lp-supporter.php');
 add_shortcode('supporter_map', 'lp_supporter_map');
 add_shortcode('supporter_counter', 'lp_supporter_counter');
 add_shortcode('supporter_carousel', 'lp_supporter_carousel');
+add_shortcode('supporter_table', 'lp_supporter_table');
 
 require_once('_inc/lp-campaign-map.php');
 add_shortcode('campaign_map', 'lp_campaign_map');

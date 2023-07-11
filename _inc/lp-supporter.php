@@ -163,3 +163,52 @@ function lp_get_users_json_handler()
     wp_send_json($result);
     wp_die();
 }
+
+function lp_supporter_table($atts = [], $content = null)
+{
+    if (!array_key_exists('campaign', $_SESSION)) {
+        wp_send_json(array('error' => 'No campaign found in $_SESSION'), 500);
+        wp_die();
+    }
+
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'lp_signer';
+    $query = "SELECT id AS 'ID', name AS 'Name', title AS 'Title', comments AS 'Comments', photo_file AS 'Photo' FROM `$table_name` WHERE share_granted = 1 AND campaign_id = %d
+    AND status = 'Approved'
+    AND ((comments IS NOT NULL AND comments != '') OR
+         (photo_file IS NOT NULL AND photo_file != '') OR
+         (title IS NOT NULL AND title != ''))";
+    $result = $wpdb->get_results($wpdb->prepare($query, $_SESSION['campaign']->id), ARRAY_A);
+    // ID, Name, Title, Comments, Photo
+
+    $header_output = false;
+    $count = 0;
+    foreach ($result as $values) {
+        if (!$header_output) {
+            echo '<table class="lp-table">';
+            echo '<tr class="lp-table-header-row">';
+            foreach ($values as $key => $value) {
+                echo '<th class="lp-table-header">' . esc_html($key) . '</th>';
+            }
+            echo '</tr>' . "\n";
+            $header_output = true;
+        }
+        echo '<tr class="lp-table-row' . ($count++ % 2 == 0 ? ' lp-even-row' : ' lp-odd-row') . '">';
+        foreach ($values as $key => $value) {
+            echo '<td class="lp-table-data">';
+            $value = display_value($key, $value);
+            if ($key == 'Photo') {
+                if ($value)
+                    $img_url = '/wp-content/uploads/local-petition/' . $_SESSION['campaign']->slug . '/' . $values['ID'] . '/' . $value;
+                else
+                    $img_url = '/wp-content/plugins/local-petition/images/placeholder-image-person.png';
+                echo '<img src="' . $img_url . '" style="max-width: 200px;">';
+            } else {
+                echo esc_html($value);
+            }
+            echo '</td>';
+        }
+        echo '</tr>' . "\n";
+    }
+    echo '</table>';
+}
