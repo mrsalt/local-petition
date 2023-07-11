@@ -1,5 +1,6 @@
 <?php
 
+require_once('lp-init.php');
 require_once('googlemaps.php');
 
 function lp_supporter_map($atts = [], $content = null)
@@ -166,9 +167,9 @@ function lp_get_users_json_handler()
 
 function lp_supporter_table($atts = [], $content = null)
 {
-    if (!array_key_exists('campaign', $_SESSION)) {
-        wp_send_json(array('error' => 'No campaign found in $_SESSION'), 500);
-        wp_die();
+    $output = '';
+    if (!set_campaign($atts['campaign'], $output)) {
+        return $output;
     }
 
     global $wpdb;
