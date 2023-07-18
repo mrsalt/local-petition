@@ -123,7 +123,7 @@ function lp_attempt_submit($style, &$continue_form_render)
             $_POST['title'] = $signer->title;
             if ($signer->is_helper) $_POST['is_helper'] = true;
             if ($signer->share_granted) $_POST['is_share'] = true;
-            $_POST['age'.urlencode($signer->name)] = $signer->age;
+            $_POST[safe_input_name('age_'.$signer->name)] = $signer->age;
             //$content .= '<div>$_POST:<pre>' . var_export($_POST, true) . '</pre></div>';
         }
 
@@ -158,12 +158,12 @@ function lp_attempt_submit($style, &$continue_form_render)
         if (str_contains($values['name'], ',')) {
             foreach (explode(',', $values['name']) as $name) {
                 $values['name'] = trim($name);
-                $values['age'] = $_POST['age'.urlencode($values['name'])];
+                $values['age'] = $_POST[safe_input_name('age_'.$values['name'])];
                 $signer = sign_petition($values, $sensitive_info_changed);
             }
         } else {
             $name = trim($values['name']);
-            $values['age'] = $_POST['age'.urlencode($name)];
+            $values['age'] = $_POST[safe_input_name('age_'.$name)];
             $signer = sign_petition($values, $sensitive_info_changed);
         }
 
@@ -347,7 +347,7 @@ function lp_render_petition_form($style, $content, $step, $signer = null)
         $names = explode(',', $_POST['signer_name']);
         foreach ($names as $name) {
             $name = trim($name);
-            $field_name = 'age' . urlencode($name);
+            $field_name = safe_input_name('age_'.$name);
             $age = $_POST[$field_name] ?? (is_user_logged_in() ? '18+' : null);
             if (count($names) > 1) {
                 $content .= '<p>What is ' . $name . '\'s age?<br>';

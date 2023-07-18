@@ -179,3 +179,8 @@ function are_phone_numbers_equal($phone1, $phone2)
     $clean_phone2 = str_replace($values_to_ignore, '', $phone2);
     return $clean_phone1 === $clean_phone2;
 }
+
+function safe_input_name($str)
+{
+    return preg_replace( '/[^a-z0-9\-]/i', '_', $str);
+}
