@@ -351,6 +351,35 @@ async function addAddMarkerButton(element) {
     titleInput.addEventListener('change', enableMarkerButton);
     addressInput.addEventListener('change', enableMarkerButton);
 
+    var controlsVisible = true;
+    element.map.addListener('contextmenu', (e) => {
+        var menuControl
+        function toggleVisibility() {
+            element.map.setOptions({mapTypeControl: !controlsVisible, panControl: !controlsVisible, fullscreenControl: !controlsVisible, zoomControl: !controlsVisible});
+            addressWindow.style.display = controlsVisible ? 'none' : '';
+            controlsVisible = !controlsVisible;
+            if (menuControl) menuControl.parentElement.removeChild(menuControl);
+        }
+        if (document.fullscreenElement) {
+            toggleVisibility();
+            return;
+        }
+        const rect = element.getBoundingClientRect();
+        const x = e.domEvent.clientX - rect.left;
+        const y = e.domEvent.clientY - rect.top;
+
+        menuControl = document.createElement('div');
+        let changeButton = document.createElement('button');
+        changeButton.textContent = controlsVisible ? 'Hide Controls' : 'Show Controls';
+        menuControl.appendChild(changeButton);
+        changeButton.addEventListener('click', () => toggleVisibility());
+        menuControl.style.position = 'absolute';
+        // Set the position for menu
+        menuControl.style.top = `${y}px`;
+        menuControl.style.left = `${x}px`;
+        element.appendChild(menuControl);
+    });
+
     element.map.controls[google.maps.ControlPosition.BOTTOM_CENTER].push(addressWindow);
 }
 
