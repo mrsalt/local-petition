@@ -306,6 +306,64 @@ async function placeNumber(number, map, position) {
     return marker;
 }
 
+async function addAddMarkerButton(element) {
+    let addressWindow = document.createElement('div');
+    addressWindow.classList.add('visit-window');
+    let addressLine = document.createElement('div');
+    addressWindow.appendChild(addressLine);
+
+    let buttonCount = 0;
+    let buttonRow;
+    function addVisitWindowButton(button) {
+        if (buttonCount++ % 2 == 0) {
+            buttonRow = document.createElement('div');
+            addressWindow.appendChild(buttonRow);
+        }
+        buttonRow.appendChild(button);
+    }
+
+    let addressLabel = document.createElement('label');
+    addressLabel.innerText = 'Address';
+    addVisitWindowButton(addressLabel);
+    let addressInput = document.createElement('input');
+    addVisitWindowButton(addressInput);
+
+    let titleLabel = document.createElement('label');
+    titleLabel.innerText = 'Title';
+    addVisitWindowButton(titleLabel);
+    let titleInput = document.createElement('input');
+    addVisitWindowButton(titleInput);
+
+    let button = document.createElement('button');
+    button.textContent = 'Add Marker';
+    button.addEventListener('click', () => {
+        placeImageMarker(element.map, {'url': '/wp-content/plugins/local-petition/images/logo-image-only-200px.png', 'scaledSize': {'height': 40, 'width': 40}, 'labelOrigin': {'x': 20, 'y': 50}}, addressInput.value, {'text': titleInput.value, 'fontSize': '20px'});
+        addressInput.value = '';
+        titleInput.value = '';
+    });
+    addVisitWindowButton(button);
+    button.disabled = true;
+
+    function enableMarkerButton() {
+        button.disabled = !(addressInput.value && titleInput.value);
+    }
+
+    titleInput.addEventListener('change', enableMarkerButton);
+    addressInput.addEventListener('change', enableMarkerButton);
+
+    element.map.controls[google.maps.ControlPosition.BOTTOM_CENTER].push(addressWindow);
+}
+
+async function placeImageMarker(map, image, address, label) {
+    const {Marker} = await google.maps.importLibrary("marker")
+    let geocoder = new google.maps.Geocoder();
+    geocoder.geocode({ 'address': address }).then((response) => {
+        let result = response.results[0];
+        let options = {'icon': image, 'map': map, 'label': label, 'position': result.geometry.location};
+        new Marker(options);
+    }).catch(() => {});
+}
+
 function beginAddingRoute(element) {
     let addRouteButton = this;
     this.disabled = true;

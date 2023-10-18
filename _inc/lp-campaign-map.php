@@ -31,12 +31,11 @@ function lp_basic_map($atts = [], $content = null)
         return "<p>Please <a href=\"/wp-login.php\">login</a> to access this page</p>";
         //auth_redirect();
     }
-    global $campaign_map_id;
-    $campaign_map_id = 'basic-map';
-    $extra_script = "";
-    // mapId could be configured in admin pages
+    global $basic_map_id;
+    $basic_map_id = 'basic-map';
+    $extra_script = ".then(() => { addAddMarkerButton(document.getElementById('$basic_map_id')) })";
     $mapId = $atts['map-id'];
-    return lp_create_map_element($campaign_map_id, 'campaign-map', true, $atts['lat'], $atts['lng'], $atts['zoom'], $mapId, $extra_script);
+    return lp_create_map_element($basic_map_id, 'campaign-map', true, $atts['lat'], $atts['lng'], $atts['zoom'], $mapId, $extra_script);
 }
 
 function load_route_info($id = null)
