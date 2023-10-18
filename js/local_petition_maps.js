@@ -337,7 +337,18 @@ async function addAddMarkerButton(element) {
     let button = document.createElement('button');
     button.textContent = 'Add Marker';
     button.addEventListener('click', () => {
-        placeImageMarker(element.map, {'url': '/wp-content/plugins/local-petition/images/logo-image-only-200px.png', 'scaledSize': {'height': 40, 'width': 40}, 'labelOrigin': {'x': 20, 'y': 50}}, addressInput.value, {'text': titleInput.value, 'fontSize': '20px'});
+        placeImageMarker(element.map,
+            {
+                'url': '/wp-content/plugins/local-petition/images/logo-image-only-200px.png',
+                'anchor': {'x': 20, 'y': 20},
+                'scaledSize': {'height': 40, 'width': 40},
+                'labelOrigin': {'x': 20, 'y': 50}
+            },
+            addressInput.value,
+            {
+                'text': titleInput.value,
+                'fontSize': '20px'
+            });
         addressInput.value = '';
         titleInput.value = '';
     });
