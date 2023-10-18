@@ -73,6 +73,7 @@ add_shortcode('supporter_table', 'lp_supporter_table');
 require_once('_inc/lp-campaign-map.php');
 add_shortcode('campaign_map', 'lp_campaign_map');
 add_shortcode('campaign_routes', 'lp_campaign_routes');
+add_shortcode('basic_map', 'lp_basic_map');
 
 // Register AJAX handlers
 add_action('wp_ajax_lp_get_supporters_json', 'lp_get_supporters_json_handler');

@@ -22,6 +22,23 @@ function lp_campaign_map($atts = [], $content = null)
     return lp_create_map_element($campaign_map_id, 'campaign-map', true, $atts['lat'], $atts['lng'], $atts['zoom'], $mapId, $extra_script);
 }
 
+function lp_basic_map($atts = [], $content = null)
+{
+    if (!set_campaign($atts['campaign'], $output)) {
+        return $output;
+    }
+    if (!is_user_logged_in()) {
+        return "<p>Please <a href=\"/wp-login.php\">login</a> to access this page</p>";
+        //auth_redirect();
+    }
+    global $campaign_map_id;
+    $campaign_map_id = 'basic-map';
+    $extra_script = "";
+    // mapId could be configured in admin pages
+    $mapId = $atts['map-id'];
+    return lp_create_map_element($campaign_map_id, 'campaign-map', true, $atts['lat'], $atts['lng'], $atts['zoom'], $mapId, $extra_script);
+}
+
 function load_route_info($id = null)
 {
     if (!array_key_exists('campaign', $_SESSION)) {
