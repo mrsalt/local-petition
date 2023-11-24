@@ -306,7 +306,7 @@ async function placeNumber(number, map, position) {
     return marker;
 }
 
-async function addAddMarkerButton(element) {
+async function addAddMarkerButton(element, mapId) {
     let addressWindow = document.createElement('div');
     addressWindow.classList.add('visit-window');
     let addressLine = document.createElement('div');
@@ -322,6 +322,13 @@ async function addAddMarkerButton(element) {
         buttonRow.appendChild(button);
     }
 
+    function addOption(select, value) {
+        let option = document.createElement('option');
+        option.innerText = value;
+        option.value = value;
+        select.appendChild(option);
+    }
+
     let addressLabel = document.createElement('label');
     addressLabel.innerText = 'Address';
     addVisitWindowButton(addressLabel);
@@ -334,20 +341,25 @@ async function addAddMarkerButton(element) {
     let titleInput = document.createElement('input');
     addVisitWindowButton(titleInput);
 
+    let typeLabel = document.createElement('label');
+    typeLabel.innerText = 'Type';
+    addVisitWindowButton(typeLabel);
+    let typeInput = document.createElement('select');
+    addOption(typeInput, 'Library');
+    addVisitWindowButton(typeInput);
+
     let button = document.createElement('button');
     button.textContent = 'Add Marker';
     button.addEventListener('click', () => {
-        placeImageMarker(element.map,
-            {
-                'url': '/wp-content/plugins/local-petition/images/logo-image-only-200px.png',
-                'anchor': {'x': 20, 'y': 20},
-                'scaledSize': {'height': 40, 'width': 40},
-                'labelOrigin': {'x': 20, 'y': 50}
-            },
-            addressInput.value,
-            {
-                'text': titleInput.value,
-                'fontSize': '20px'
+        fetch('/wp-admin/admin-ajax.php?action=lp_place_marker' +
+            '&address=' + encodeURIComponent(addressInput.value) +
+            '&name=' + encodeURIComponent(titleInput.value) +
+            '&type=' + encodeURIComponent(typeInput.value) +
+            '&map_id=' + mapId)
+            .then(req => req.json())
+            .then(json => {
+                for (const marker of json)
+                    addMapMarker(element.map, marker);
             });
         addressInput.value = '';
         titleInput.value = '';
@@ -366,7 +378,7 @@ async function addAddMarkerButton(element) {
     element.map.addListener('contextmenu', (e) => {
         var menuControl
         function toggleVisibility() {
-            element.map.setOptions({mapTypeControl: !controlsVisible, panControl: !controlsVisible, fullscreenControl: !controlsVisible, zoomControl: !controlsVisible});
+            element.map.setOptions({ mapTypeControl: !controlsVisible, panControl: !controlsVisible, fullscreenControl: !controlsVisible, zoomControl: !controlsVisible });
             addressWindow.style.display = controlsVisible ? 'none' : '';
             controlsVisible = !controlsVisible;
             if (menuControl) menuControl.parentElement.removeChild(menuControl);
@@ -394,14 +406,56 @@ async function addAddMarkerButton(element) {
     element.map.controls[google.maps.ControlPosition.BOTTOM_CENTER].push(addressWindow);
 }
 
+function loadMapMarkers(element, mapId) {
+    fetch('/wp-admin/admin-ajax.php?action=lp_load_markers_json' +
+        '&map_id=' + encodeURIComponent(mapId))
+        .then(req => req.json())
+        .then(json => {
+            for (const marker of json)
+                addMapMarker(element.map, marker);
+        });
+}
+
+async function addMapMarker(map, info) {
+    const { Marker } = await google.maps.importLibrary("marker")
+    let iconUrl;
+    if (info.icon === 'Library')
+        iconUrl = '/wp-content/plugins/local-petition/images/logo-image-only-200px.png';
+    else
+        throw new Error('icon type ' + info.icon + ' not known')
+
+    let options = {
+        icon: {
+            url: iconUrl,
+            anchor: { 'x': 20, 'y': 20 },
+            scaledSize: { 'height': 40, 'width': 40 },
+            labelOrigin: { 'x': 20, 'y': 50 }
+        }, map: map, label: {
+            text: info.name,
+            fontSize: '20px'
+        }, position: { lat: parseFloat(info.latitude), lng: parseFloat(info.longitude) }
+    };
+    let marker = new Marker(options);
+    marker.addListener('click', () => {
+        const infowindow = new google.maps.InfoWindow({
+            content: info.name + '<br>' +
+                info.line_1 + ', ' + info.city + ', ' + info.state
+        });
+        infowindow.open({
+            anchor: marker,
+            map,
+        });
+    });
+}
+
 async function placeImageMarker(map, image, address, label) {
-    const {Marker} = await google.maps.importLibrary("marker")
+    const { Marker } = await google.maps.importLibrary("marker")
     let geocoder = new google.maps.Geocoder();
     geocoder.geocode({ 'address': address }).then((response) => {
         let result = response.results[0];
-        let options = {'icon': image, 'map': map, 'label': label, 'position': result.geometry.location};
+        let options = { 'icon': image, 'map': map, 'label': label, 'position': result.geometry.location };
         new Marker(options);
-    }).catch(() => {});
+    }).catch(() => { });
 }
 
 function beginAddingRoute(element) {

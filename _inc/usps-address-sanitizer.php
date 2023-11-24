@@ -122,3 +122,34 @@ function update_coordinates($address_id, $coordinates)
         array('id' => $address_id)
     );
 }
+
+// Number of parts = number of commas plus one.
+// 3 parts:
+// 13319 W Silverbrook Dr, Boise, ID 83713
+// 4 parts:
+// 13319 W Silverbrook Dr, Boise, ID 83713, USA <-- we assume this format if there are 4 parts
+// 13319 W Silverbrook Dr, Apt B, Boise, ID 83713
+// 5 parts:
+// 13319 W Silverbrook Dr, Apt B, Boise, ID 83713, USA
+function parse_address_with_commas($formatted_address) {
+    $parts = explode(', ', $formatted_address);
+    if (count($parts) == 3 || count($parts) == 4)
+        $zip_part = 2;
+    else if (count($parts) == 5)
+        $zip_part = 3;
+    else
+        throw new Exception('Address format unexpected: ' + $formatted_address);
+    $city = strtoupper($parts[$zip_part - 1]);
+    $sep = strpos($parts[$zip_part], ' ');
+    if ($sep === false)
+        throw new Exception('Address format unexpected: ' + $formatted_address);
+    $state = substr($parts[$zip_part], 0, $sep);
+    $zip = substr($parts[$zip_part], $sep + 1);
+
+    return array(
+        'line_1' => strtoupper($parts[0]),
+        'line_2' => count($parts) == 5 ? strtoupper($parts[1]) : null,
+        'city' => $city,
+        'state' => $state,
+        'zip' => $zip);
+}

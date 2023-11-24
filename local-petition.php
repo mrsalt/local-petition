@@ -73,6 +73,7 @@ add_shortcode('supporter_table', 'lp_supporter_table');
 require_once('_inc/lp-campaign-map.php');
 add_shortcode('campaign_map', 'lp_campaign_map');
 add_shortcode('campaign_routes', 'lp_campaign_routes');
+require_once('_inc/lp-basic-map.php');
 add_shortcode('basic_map', 'lp_basic_map');
 
 // Register AJAX handlers
@@ -80,6 +81,8 @@ add_action('wp_ajax_lp_get_supporters_json', 'lp_get_supporters_json_handler');
 add_action('wp_ajax_nopriv_lp_get_supporters_json', 'lp_get_supporters_json_handler');
 add_action('wp_ajax_lp_get_supporters_map_coordinates_json', 'lp_get_supporters_map_coordinates_json_handler');
 add_action('wp_ajax_nopriv_lp_get_supporters_map_coordinates_json', 'lp_get_supporters_map_coordinates_json_handler');
+add_action('wp_ajax_lp_load_markers_json', 'lp_load_markers_json_handler');
+add_action('wp_ajax_nopriv_lp_load_markers_json', 'lp_load_markers_json_handler');
 
 // AJAX handlers only for logged in users
 add_action('wp_ajax_lp_get_map_routes', 'lp_get_map_routes_json_handler');
@@ -89,6 +92,8 @@ add_action('wp_ajax_lp_get_users', 'lp_get_users_json_handler');
 add_action('wp_ajax_lp_update_route_number_position', 'lp_update_route_number_position_json_handler');
 add_action('wp_ajax_lp_get_visits', 'lp_get_visits_json_handler');
 add_action('wp_ajax_lp_record_route_visit', 'lp_record_route_visit_json_handler');
+add_action('wp_ajax_lp_place_marker', 'lp_place_marker_json_handler');
+
 
 wp_enqueue_style('local_petition_style', plugins_url('css/local_petition.css', __FILE__), false, LOCAL_PETITION_VERSION);
 wp_enqueue_script('jscookie', plugins_url('js/js.cookie.min.js', __FILE__), array(), '3.0.5');

@@ -22,22 +22,6 @@ function lp_campaign_map($atts = [], $content = null)
     return lp_create_map_element($campaign_map_id, 'campaign-map', true, $atts['lat'], $atts['lng'], $atts['zoom'], $mapId, $extra_script);
 }
 
-function lp_basic_map($atts = [], $content = null)
-{
-    if (!set_campaign($atts['campaign'], $output)) {
-        return $output;
-    }
-    if (!is_user_logged_in()) {
-        return "<p>Please <a href=\"/wp-login.php\">login</a> to access this page</p>";
-        //auth_redirect();
-    }
-    global $basic_map_id;
-    $basic_map_id = 'basic-map';
-    $extra_script = ".then(() => { addAddMarkerButton(document.getElementById('$basic_map_id')) })";
-    $mapId = $atts['map-id'];
-    return lp_create_map_element($basic_map_id, 'campaign-map', true, $atts['lat'], $atts['lng'], $atts['zoom'], $mapId, $extra_script);
-}
-
 function load_route_info($id = null)
 {
     if (!array_key_exists('campaign', $_SESSION)) {
@@ -318,21 +302,7 @@ function lp_record_route_visit_json_handler()
     // Do we already have this address in our DB?
     //13319 W Silverbrook Dr, Boise, ID 83713, USA
     $formatted_address = wp_unslash($_GET['formatted_address']);
-    $parts = explode(', ', $formatted_address);
-    if (count($parts) == 4)
-        $zip_part = 2;
-    else if (count($parts) == 5)
-        $zip_part = 3;
-    else
-        throw new Exception('Address format unexpected: ' + $formatted_address);
-    $city = strtoupper($parts[$zip_part - 1]);
-    $sep = strpos($parts[$zip_part], ' ');
-    if ($sep === false)
-        throw new Exception('Address format unexpected: ' + $formatted_address);
-    $state = substr($parts[$zip_part], 0, $sep);
-    $zip = substr($parts[$zip_part], $sep + 1);
-
-    $address = array('line_1' => strtoupper($parts[0]), 'line_2' => count($parts) == 5 ? strtoupper($parts[1]) : null, 'city' => $city, 'state' => $state, 'zip' => $zip);
+    $address = parse_address_with_commas($formatted_address);
     $address_id = get_address_id($address);
 
     if ($address_id) {

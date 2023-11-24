@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.42';
+$lp_db_version = '1.43';
 
 function lp_db_install()
 {
@@ -153,6 +153,32 @@ function lp_db_install()
 		PRIMARY KEY  (campaign_id, address_id)
 	) $charset_collate;";
 	dbDelta($sql);
+
+	$map_table_name = $wpdb->prefix . 'lp_map';
+	$sql = "CREATE TABLE $map_table_name (
+		id mediumint(9) NOT NULL AUTO_INCREMENT,
+		created timestamp DEFAULT CURRENT_TIMESTAMP,
+		campaign_id mediumint(9) NOT NULL,
+		name varchar(50) NOT NULL,
+		PRIMARY KEY  (id)
+	) $charset_collate;";
+	dbDelta($sql);
+
+	$table_name = $wpdb->prefix . 'lp_marker';
+	$sql = "CREATE TABLE $table_name (
+		id mediumint(9) NOT NULL AUTO_INCREMENT,
+		created timestamp DEFAULT CURRENT_TIMESTAMP,
+		name varchar(50) NOT NULL,
+		address_id mediumint(9) NOT NULL,
+		map_id mediumint(9) NOT NULL,
+		icon ENUM ('Library') NOT NULL DEFAULT 'Library',
+		PRIMARY KEY  (id)
+	) $charset_collate;";
+	dbDelta($sql);
+	if (!check_for_constraint('marker_address_fk', 'FOREIGN KEY')) {
+		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT marker_address_fk  FOREIGN KEY (address_id)  REFERENCES $address_table_name(id)");
+		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT map_address_fk  FOREIGN KEY (map_id)  REFERENCES $map_table_name(id)");
+	}
 
 	error_log('Notice: updating lp_db_version to ' . $installed_ver);
 	if (!isset($installed_ver))
