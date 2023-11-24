@@ -346,6 +346,7 @@ async function addAddMarkerButton(element, mapId) {
     addVisitWindowButton(typeLabel);
     let typeInput = document.createElement('select');
     addOption(typeInput, 'Library');
+    addOption(typeInput, 'Question Mark')
     addVisitWindowButton(typeInput);
 
     let button = document.createElement('button');
@@ -368,7 +369,7 @@ async function addAddMarkerButton(element, mapId) {
     button.disabled = true;
 
     function enableMarkerButton() {
-        button.disabled = !(addressInput.value && titleInput.value);
+        button.disabled = !(addressInput.value);
     }
 
     titleInput.addEventListener('change', enableMarkerButton);
@@ -419,48 +420,63 @@ function loadMapMarkers(element, mapId) {
 async function addMapMarker(map, info) {
     const { Marker } = await google.maps.importLibrary("marker")
     let iconUrl;
-    if (info.icon === 'Library')
+    let showRadius = false;
+    let scaledSize = undefined;
+    let label = undefined;
+    if (info.icon === 'Library') {
+        showRadius = true;
         iconUrl = '/wp-content/plugins/local-petition/images/logo-image-only-200px.png';
-    else
+        scaledSize = { 'height': 40, 'width': 40 };
+    }
+    else if (info.icon === 'Question Mark') {
+        iconUrl = '/wp-content/plugins/local-petition/images/question-mark-45x89.png';
+        scaledSize = { 'height': 45, 'width': 23 };
+    }
+    else {
         throw new Error('icon type ' + info.icon + ' not known')
+    }
+    if (info.name) {
+        label = {
+            text: info.name,
+            fontSize: '20px'
+        };
+    }
 
     const markerLocation = { lat: parseFloat(info.latitude), lng: parseFloat(info.longitude) }
-
-    let circle = new google.maps.Circle({
-        strokeColor: "#D47BAC",
-        strokeOpacity: 0.8,
-        strokeWeight: 2,
-        fillColor: "#D47BAC",
-        fillOpacity: 0.20,
-        map,
-        center: markerLocation,
-        radius: 3219,
-        clickable: false
-    });
-    // radius unit is meters
 
     let options = {
         icon: {
             url: iconUrl,
             anchor: { 'x': 20, 'y': 20 },
-            scaledSize: { 'height': 40, 'width': 40 },
+            scaledSize: scaledSize,
             labelOrigin: { 'x': 20, 'y': 50 }
-        }, map: map, label: {
-            text: info.name,
-            fontSize: '20px'
-        }, position: markerLocation
+        }, map: map, label: label, position: markerLocation
     };
     let marker = new Marker(options);
-    marker.addListener('click', () => {
+    if (showRadius) {
+        new google.maps.Circle({
+            strokeColor: "#D47BAC",
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            fillColor: "#D47BAC",
+            fillOpacity: 0.20,
+            map,
+            center: markerLocation,
+            radius: 3219,
+            clickable: false
+        });
+        // radius unit is meters
         const infowindow = new google.maps.InfoWindow({
             content: info.name + '<br>' +
                 info.line_1 + ', ' + info.city + ', ' + info.state
         });
-        infowindow.open({
-            anchor: marker,
-            map,
+        marker.addListener('click', () => {
+            infowindow.open({
+                anchor: marker,
+                map,
+            });
         });
-    });
+    }
 }
 
 async function placeImageMarker(map, image, address, label) {

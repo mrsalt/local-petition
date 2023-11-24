@@ -141,10 +141,14 @@ function parse_address_with_commas($formatted_address) {
         throw new Exception('Address format unexpected: ' + $formatted_address);
     $city = strtoupper($parts[$zip_part - 1]);
     $sep = strpos($parts[$zip_part], ' ');
-    if ($sep === false)
-        throw new Exception('Address format unexpected: ' + $formatted_address);
-    $state = substr($parts[$zip_part], 0, $sep);
-    $zip = substr($parts[$zip_part], $sep + 1);
+    if ($sep !== false) {
+        $state = substr($parts[$zip_part], 0, $sep);
+        $zip = substr($parts[$zip_part], $sep + 1);
+    }
+    else {
+        $state = $parts[$zip_part];
+        $zip = '';
+    }
 
     return array(
         'line_1' => strtoupper($parts[0]),
