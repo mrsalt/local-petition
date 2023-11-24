@@ -424,6 +424,21 @@ async function addMapMarker(map, info) {
     else
         throw new Error('icon type ' + info.icon + ' not known')
 
+    const markerLocation = { lat: parseFloat(info.latitude), lng: parseFloat(info.longitude) }
+
+    let circle = new google.maps.Circle({
+        strokeColor: "#D47BAC",
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        fillColor: "#D47BAC",
+        fillOpacity: 0.20,
+        map,
+        center: markerLocation,
+        radius: 3219,
+        clickable: false
+    });
+    // radius unit is meters
+
     let options = {
         icon: {
             url: iconUrl,
@@ -433,7 +448,7 @@ async function addMapMarker(map, info) {
         }, map: map, label: {
             text: info.name,
             fontSize: '20px'
-        }, position: { lat: parseFloat(info.latitude), lng: parseFloat(info.longitude) }
+        }, position: markerLocation
     };
     let marker = new Marker(options);
     marker.addListener('click', () => {
