@@ -99,7 +99,7 @@ function do_query($limit = null, $offset = 0, $apply_filters = true, $count_only
 {
     global $wpdb;
 
-    $filters = ['CampaignStatus' => 'campaign.status', 'Campaign' => 'campaign.name', 'Status' => 'signer.status', 'Share Public' => 'signer.share_granted', 'Helper' => 'signer.is_helper', 'Supporter' => 'signer.is_supporter', 'Age' => 'signer.age', 'Collected By' => 'signer_proxy.name', 'Entered By' => 'users.display_name'];
+    $filters = ['CampaignStatus' => 'campaign.status', 'Campaign' => 'campaign.name', 'Status' => 'signer.status', 'Email Status' => 'signer.email_status', 'Share Public' => 'signer.share_granted', 'Helper' => 'signer.is_helper', 'Supporter' => 'signer.is_supporter', 'Age' => 'signer.age', 'Collected By' => 'signer_proxy.name', 'Entered By' => 'users.display_name'];
 
     $table_name = $wpdb->prefix . 'lp_signer';
     $campaign_table = $wpdb->prefix . 'lp_campaign';
@@ -112,7 +112,7 @@ function do_query($limit = null, $offset = 0, $apply_filters = true, $count_only
         $query .= "COUNT(*) 'Count' ";
     } else {
         $query .= "campaign.name 'Campaign', campaign.slug,
-                     signer.id 'ID', signer.status 'Status', signer.created 'Created', signer.name 'Name', signer.age 'Age', signer.photo_file 'Photo', signer.title 'Title', signer.email 'Email', signer.phone 'Phone', signer.comments 'Comments', signer.share_granted 'Share Public', signer.is_helper 'Helper', signer.is_supporter 'Supporter',
+                     signer.id 'ID', signer.status 'Status', signer.created 'Created', signer.name 'Name', signer.age 'Age', signer.photo_file 'Photo', signer.title 'Title', signer.email 'Email', signer.email_status 'Email Status', signer.phone 'Phone', signer.comments 'Comments', signer.share_granted 'Share Public', signer.is_helper 'Helper', signer.is_supporter 'Supporter',
                      address.line_1 'Line 1', address.line_2 'Line 2', address.city 'City', address.state 'State', address.neighborhood 'Neighborhood',
                      signer_proxy.name 'Collected By', users.display_name 'Entered By' ";
     }
@@ -143,11 +143,17 @@ function lp_review_signers()
 
     if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $users = array_keys($_POST['user-id']);
-        if (count($users) > 0 && $_POST['new_status'] !== 'Unreviewed') {
+        if (count($users) > 0) {
             global $wpdb;
             $table_name = $wpdb->prefix . 'lp_signer';
-            $query = "UPDATE `$table_name` SET status = '" . $_POST['new_status'] . "', approved_id = " . wp_get_current_user()->ID . ' WHERE id IN (' . implode(',', $users) . ')';
-            $wpdb->get_results($query);
+            if (array_key_exists('new_status', $_POST) && $_POST['new_status'] !== '-- No Change --') {
+                $query = "UPDATE `$table_name` SET status = '" . $_POST['new_status'] . "', approved_id = " . wp_get_current_user()->ID . ' WHERE id IN (' . implode(',', $users) . ')';
+                $wpdb->get_results($query);
+            }
+            if (array_key_exists('new_email_status', $_POST) && $_POST['new_email_status'] !== '-- No Change --') {
+                $query = "UPDATE `$table_name` SET email_status = '" . $_POST['new_email_status'] . "' WHERE id IN (" . implode(',', $users) . ')';
+                $wpdb->get_results($query);
+            }
         }
     }
 
@@ -161,15 +167,15 @@ function lp_review_signers()
     $hidden_columns = ['slug'];
     $header_output = false;
     $count = 0;
-    $show_form = array_key_exists('Status', $_GET);
+    $update_status = array_key_exists('Status', $_GET);
 
     foreach ($result as $values) {
         if (!$header_output) {
             echo build_filters($unfiltered, $unique_values, $hidden_columns);
-            if ($show_form) echo '<form method="post">';
+            echo '<form method="post">';
             echo '<table class="lp-table">';
             echo '<tr class="lp-table-header-row">';
-            if ($show_form) echo '<th></th>';
+            echo '<th></th>';
             foreach ($values as $key => $value) {
                 if (in_array($key, $hidden_columns)) continue;
                 echo '<th class="lp-table-header">' . esc_html($key) . '</th>';
@@ -178,8 +184,7 @@ function lp_review_signers()
             $header_output = true;
         }
         echo '<tr class="lp-table-row' . ($count++ % 2 == 0 ? ' lp-even-row' : ' lp-odd-row') . '">';
-        if ($show_form)
-            echo '<td class="lp-table-data"><input type="checkbox" name="user-id[' . $values['ID'] . ']" checked></td>';
+        echo '<td class="lp-table-data"><input type="checkbox" name="user-id[' . $values['ID'] . ']"></td>';
         foreach ($values as $key => $value) {
             if (in_array($key, $hidden_columns)) continue;
             echo '<td class="lp-table-data">';
@@ -206,15 +211,26 @@ function lp_review_signers()
     echo '</table>';
 
     echo '<br/>';
-    if ($show_form) {
-        echo '<div>Change status of selected to: <select name="new_status">' .
+    echo '<div>';
+    if ($update_status) {
+        echo 'Change status of selected to: <select name="new_status">' .
+            '<option>-- No Change --</option>' .
             '<option>Unreviewed</option>' .
             '<option>Approved</option>' .
             '<option>Quarantined</option>' .
             '</select>';
-        echo ' ';
-        echo '<input type="submit"></div>';
     }
+    echo ' change email to: <select name="new_email_status">' .
+    '<option>-- No Change --</option>' .
+    '<option>Unknown</option>' .
+    '<option>Valid</option>' .
+    '<option>Full</option>' .
+    '<option>Invalid</option>' .
+    '<option>Unsubscribed</option>' .
+    '</select>';
+
+    echo ' ';
+    echo '<input type="submit"></div>';
     echo '</form>';
     echo '<div>' . $total . ' results</div>';
     echo '<div>Page ';

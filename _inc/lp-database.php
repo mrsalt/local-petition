@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.44';
+$lp_db_version = '1.45';
 
 function lp_db_install()
 {
@@ -72,6 +72,7 @@ function lp_db_install()
 		share_granted boolean NOT NULL,
 		is_helper boolean NOT NULL,
 		email varchar(50),
+		email_status ENUM('Unknown','Valid','Full','Invalid','Unsubscribed') NOT NULL DEFAULT 'Unknown',
 		phone varchar(20),
 		status ENUM ('Unreviewed','Approved','Quarantined') NOT NULL DEFAULT 'Unreviewed',
 		approved_id mediumint(9) NULL,
