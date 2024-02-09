@@ -108,9 +108,9 @@ function lp_review_messages()
     echo 'Change status of selected to: <select name="new_status">' .
         '<option>-- No Change --</option>' .
         '<option>Unread</option>' .
-        '<option>Read</option>' .
         '<option>Response Sent</option>' .
         '<option>Will Not Respond</option>' .
+        '<option>Spam</option>' .
         '</select>';
 
     echo ' ';

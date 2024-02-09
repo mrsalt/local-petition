@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.46';
+$lp_db_version = '1.47';
 
 function lp_db_install()
 {
@@ -103,7 +103,7 @@ function lp_db_install()
 	$sql = "CREATE TABLE $table_name (
 		id mediumint(9) NOT NULL AUTO_INCREMENT,
 		created timestamp DEFAULT CURRENT_TIMESTAMP,
-		status ENUM ('Unread','Read','Response Sent','Will Not Respond') NOT NULL DEFAULT 'Unread',
+		status ENUM ('Unread','Read','Response Sent','Will Not Respond','Spam') NOT NULL DEFAULT 'Unread',
 		name varchar(50) NOT NULL,
 		email varchar(50),
 		comments text NOT NULL,
