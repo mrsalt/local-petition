@@ -225,14 +225,20 @@ function update_filter(filter, newValue) {
     window.location.href = window.location.origin + window.location.pathname + searchString;
 }
 
-function update_visible_columns(select) {
+function update_visible_columns(select, cookie_name) {
     let Cookies2 = Cookies.noConflict();
     let hidden_columns = [];
     for (idx in select.children) {
-        console.log(select.children[idx].innerText);
+        //console.log(select.children[idx].innerText);
         if (!select.children[idx].selected)
             hidden_columns.push(select.children[idx].innerText);
     }
-    Cookies2.set('lp-hidden-columns', JSON.stringify(hidden_columns));
+    Cookies2.set(cookie_name, JSON.stringify(hidden_columns));
     window.location.reload();
+}
+
+function toggle_checkbox(srcCheckbox) {
+    for (const checkbox of document.querySelectorAll('td.lp-table-data input[type=checkbox]')) {
+        checkbox.checked = srcCheckbox.checked;
+    }
 }

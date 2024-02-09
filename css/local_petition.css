@@ -237,3 +237,9 @@ tr.lp-even-row {
 tr.lp-odd-row {
     background-color: #9bd6d2;
 }
+
+table.lp-table td div.comments {
+    max-width: 400px;
+    max-height: 200px;
+    overflow-y: auto;
+}

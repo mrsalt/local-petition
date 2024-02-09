@@ -1,6 +1,7 @@
 <?php
 
 require_once('lp-signers-admin.php');
+require_once('lp-review-messages-admin.php');
 
 function lp_admin_menu()
 {
@@ -23,6 +24,15 @@ function lp_admin_menu()
         'lp-route-map',
         'lp_route_map_redirect',
         plugins_url('local-petition/images/map-icon-28x22.png'),
+        null //6
+    );
+    add_menu_page(
+        __('Review Messages', 'textdomain'),
+        'Review Messages',
+        'moderate_comments',
+        'lp-review-messages',
+        'lp_review_messages',
+        plugins_url('local-petition/images/mail-25x25.png'),
         null //6
     );
 }
@@ -48,6 +58,22 @@ function lp_admin_bar_menu(WP_Admin_Bar $admin_bar)
             'href'  => admin_url('admin.php?page=lp-review-signers&Status=Unreviewed'),
             'meta' => [
                 'title' => __('Approve new signers so they will become visible on the site', 'textdomain'), //This title will show on hover
+            ]
+        ));
+
+        $table_name = $wpdb->prefix . 'lp_contact_request';
+        $query = "SELECT COUNT(*) AS count FROM `$table_name` WHERE status = 'Unread'";
+        $result = $wpdb->get_results($query);
+        $count = $result[0]->count;
+
+        $admin_bar->add_menu(array(
+            'id'    => 'lp-review-messages',
+            'parent' => null,
+            'group'  => null,
+            'title' => 'Unread Messages (' . $count . ')', //you can use img tag with image link. it will show the image icon Instead of the title.
+            'href'  => admin_url('admin.php?page=lp-review-messages&Status=Unread'),
+            'meta' => [
+                'title' => __('Review messages submitted via Contact Us', 'textdomain'), //This title will show on hover
             ]
         ));
     }

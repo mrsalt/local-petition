@@ -1,101 +1,8 @@
 <?php
 
-function display_value($key, $value)
-{
-    if ($key == 'Share Public' || $key == 'Helper' || $key == 'Supporter') {
-        if ($value == '0')
-            return 'No';
-        if ($value == '1')
-            return 'Yes';
-    }
-    return $value;
-}
+require_once('lp-tables-admin.php');
 
-function internal_value($key, $value)
-{
-    if ($key == 'Share Public' || $key == 'Helper' || $key == 'Supporter') {
-        if ($value == 'No')
-            return '0';
-        if ($value == 'Yes')
-            return '1';
-    }
-    return $value;
-}
-
-function build_filters($result, $unique_values, &$hidden_columns)
-{
-    $histogram = [];
-    foreach ($result as $index => $values) {
-        foreach ($values as $key => $value) {
-            if (in_array($key, $unique_values)) continue;
-            if (in_array($key, $hidden_columns)) continue;
-            $value = display_value($key, $value);
-            if (!array_key_exists($key, $histogram))
-                $histogram[$key] = [$value => 1];
-            else {
-                if (!array_key_exists($value, $histogram[$key]))
-                    $histogram[$key][$value] = 1;
-                else
-                    $histogram[$key][$value]++;
-            }
-        }
-    }
-    $content = '<table><tr>';
-    foreach ($histogram as $key => $options) {
-        $content .= '<td>' . $key . '</td>';
-    }
-    $content .= '<td>Visible Columns</td>';
-    $content .= "</tr>\n";
-    $content .= '<tr>';
-    foreach ($histogram as $key => $options) {
-        $content .= '<td><select onchange="update_filter(\'' . $key . '\',this.value);">';
-        $content .= '<option>&lt;All&gt;</option>';
-        foreach ($options as $value => $count) {
-            $wpkey = str_replace(' ', '_', $key);
-            $selected = array_key_exists($wpkey, $_GET) && $_GET[$wpkey] === $value;
-            $content .= '<option' . ($selected ? ' selected' : '') . ' value="' . $value . '">' . $value . ' (' . $count . ')</option>';
-        }
-        $content .= '</td>' . "\n";
-    }
-    $content .= '<td><select multiple onchange="update_visible_columns(this);">';
-    $hidden_by_cookie = [];
-    if (array_key_exists('lp-hidden-columns', $_COOKIE)) {
-        // This is annoying.  https://wordpress.stackexchange.com/questions/34866/stop-wordpress-automatically-escaping-post-data
-        $hidden_by_cookie = json_decode(wp_unslash($_COOKIE['lp-hidden-columns']));
-    }
-    $count = 0;
-    if (count($result) > 0) {
-        foreach ($result[0] as $key => $value) {
-            if (in_array($key, $hidden_columns)) continue;
-            $visible = !in_array($key, $hidden_by_cookie);
-            $content .= '<option' . ($visible ? ' selected' : '') . '>' . $key . '</option>';
-            $count++;
-        }
-    }
-    $content .= '</select></td>';
-    $content .= "</tr>\n";
-    $hidden_columns = array_merge($hidden_columns, $hidden_by_cookie);
-    return $content;
-    //return var_export($histogram, true);
-}
-
-function build_where($filters, $values = [])
-{
-    $where = '';
-    $values = array_merge($values, $_GET);
-    foreach ($filters as $key => $field) {
-        $wpkey = str_replace(' ', '_', $key);
-        if (array_key_exists($wpkey, $values)) {
-            if (strlen($where) > 0) $where .= ' AND ';
-            $value = internal_value($key, $values[$wpkey]);
-            if (!is_numeric($value)) $value = '\'' . $value . '\'';
-            $where .= $field . ' = ' . $value;
-        }
-    }
-    return $where;
-}
-
-function do_query($limit = null, $offset = 0, $apply_filters = true, $count_only = false)
+function lp_query_signers($limit = null, $offset = 0, $apply_filters = true, $count_only = false)
 {
     global $wpdb;
 
@@ -123,7 +30,7 @@ function do_query($limit = null, $offset = 0, $apply_filters = true, $count_only
               LEFT JOIN `$table_name` signer_proxy ON signer_proxy.id = `proxy`.collected_by
               LEFT JOIN `$wp_user_table` users ON users.id = `proxy`.wp_user_id";
     if ($apply_filters) {
-        $where = build_where($filters, ['CampaignStatus' => 'Active']);
+        $where = build_where('signers', $filters, ['CampaignStatus' => 'Active']);
         $query .= " WHERE $where";
     }
     if (!$count_only && $limit !== null) {
@@ -157,11 +64,11 @@ function lp_review_signers()
         }
     }
 
-    $unfiltered = do_query(apply_filters: false);
+    $unfiltered = lp_query_signers(apply_filters: false);
 
     $limit = array_key_exists('limit', $_GET) ? intval($_GET['limit']) : 25;
     $offset = array_key_exists('offset', $_GET) ? intval($_GET['offset']) : 0;
-    $result = do_query($limit, $offset, apply_filters: true);
+    $result = lp_query_signers($limit, $offset, apply_filters: true);
 
     $unique_values = ['ID', 'Created', 'Name', 'Photo', 'Title', 'Email', 'Phone', 'Comments', 'Line 1', 'Line 2'];
     $hidden_columns = ['slug'];
@@ -171,11 +78,11 @@ function lp_review_signers()
 
     foreach ($result as $values) {
         if (!$header_output) {
-            echo build_filters($unfiltered, $unique_values, $hidden_columns);
+            echo build_filters('signers', $unfiltered, $unique_values, $hidden_columns);
             echo '<form method="post">';
             echo '<table class="lp-table">';
             echo '<tr class="lp-table-header-row">';
-            echo '<th></th>';
+            echo '<th><input type="checkbox" onclick="toggle_checkbox(this)"></th>';
             foreach ($values as $key => $value) {
                 if (in_array($key, $hidden_columns)) continue;
                 echo '<th class="lp-table-header">' . esc_html($key) . '</th>';
@@ -202,7 +109,7 @@ function lp_review_signers()
         }
         echo '</tr>' . "\n";
     }
-    $result = do_query(count_only: true);
+    $result = lp_query_signers(count_only: true);
     $total = intval($result[0]->Count);
     if (count($result) == 0) {
         echo '<br><p>There are no users that match the current criteria.</p>';

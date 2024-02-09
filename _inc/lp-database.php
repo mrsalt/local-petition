@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.45';
+$lp_db_version = '1.46';
 
 function lp_db_install()
 {
@@ -107,6 +107,7 @@ function lp_db_install()
 		name varchar(50) NOT NULL,
 		email varchar(50),
 		comments text NOT NULL,
+		updated_id mediumint(9) NULL,
 		PRIMARY KEY  (id)
 	) $charset_collate;";
 	dbDelta($sql);
