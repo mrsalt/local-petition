@@ -28,7 +28,6 @@ define('LOCAL_PETITION_VERSION', '1.0.0');
 define('LP_PRODUCTION', get_cfg_var('environment') === 'production');
 define('reCAPTCHA_site_key', get_cfg_var('reCAPTCHA_site_key'));
 define('reCAPTCHA_secret', get_cfg_var('reCAPTCHA_secret'));
-define('google_maps_api_key', get_cfg_var('google_maps_api_key'));
 
 // Make sure we don't expose any info if called directly
 if (!function_exists('add_action')) {
