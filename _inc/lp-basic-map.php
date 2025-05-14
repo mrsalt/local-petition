@@ -89,3 +89,26 @@ function lp_place_marker_json_handler() {
     lp_load_markers_json_handler(id: intval($wpdb->insert_id));
 }
 
+function lp_delete_marker_json_handler() {
+    if (!array_key_exists('campaign', $_SESSION)) {
+        wp_send_json(array('error' => 'No campaign found in $_SESSION'), 500);
+        wp_die();
+    }
+
+    if (!is_user_logged_in()) {
+        wp_send_json(array('error' => 'User not logged in'), 401);
+        wp_die();
+    }
+
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'lp_marker';
+    $values = array(
+        'id' => $_GET['id']
+    );
+    $result = $wpdb->delete($table_name, $values);
+    if ($result === false) {
+        throw new Exception('Failed to delete from ' . $table_name);
+    }
+    wp_send_json(true);
+    wp_die();
+}

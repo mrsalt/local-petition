@@ -92,6 +92,7 @@ add_action('wp_ajax_lp_update_route_number_position', 'lp_update_route_number_po
 add_action('wp_ajax_lp_get_visits', 'lp_get_visits_json_handler');
 add_action('wp_ajax_lp_record_route_visit', 'lp_record_route_visit_json_handler');
 add_action('wp_ajax_lp_place_marker', 'lp_place_marker_json_handler');
+add_action('wp_ajax_lp_delete_marker', 'lp_delete_marker_json_handler');
 
 
 wp_enqueue_style('local_petition_style', plugins_url('css/local_petition.css', __FILE__), false, LOCAL_PETITION_VERSION);

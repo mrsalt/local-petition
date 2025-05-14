@@ -1,5 +1,7 @@
 "use strict";
 
+let hasEditPrivileges = false;
+
 // position should be an object like this:
 // const position = { lat: -25.344, lng: 131.031 };
 // zoom should be a zoom level.  0 = whole earth, 4 = zoomed out very far.  15?
@@ -307,6 +309,7 @@ async function placeNumber(number, map, position) {
 }
 
 async function addAddMarkerButton(element, mapId) {
+    hasEditPrivileges = true;
     let addressWindow = document.createElement('div');
     addressWindow.classList.add('visit-window');
     let addressLine = document.createElement('div');
@@ -470,6 +473,20 @@ async function addMapMarker(map, info) {
             content: info.name + '<br>' +
                 info.line_1 + ', ' + info.city + ', ' + info.state
         });
+
+        if (hasEditPrivileges) {
+            let deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Delete';
+            deleteButton.addEventListener('click', (e) => {
+                let url = '/wp-admin/admin-ajax.php?action=lp_delete_marker&id=' + info.id;
+                fetch(url)
+                    .then(req => req.json())
+                    .then(response => {
+                        marker.setMap(null);
+                    });
+            });
+            infowindow.appendChild(deleteButton);
+        }
         marker.addListener('click', () => {
             infowindow.open({
                 anchor: marker,
