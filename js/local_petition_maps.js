@@ -316,6 +316,7 @@ function showContextMenu(parent, e, buttons) {
     }
 
     // Set the position for menu
+    menuControl.style.position = 'absolute';
     const rect = parent.getBoundingClientRect();
     const x = e.domEvent.clientX - rect.left;
     const y = e.domEvent.clientY - rect.top;
@@ -383,8 +384,9 @@ async function addAddMarkerButton(element, mapId) {
             '&map_id=' + mapId)
             .then(req => req.json())
             .then(json => {
-                for (const marker of json)
-                    addMapMarker(element.map, marker);
+                for (const marker of json) {
+                    addMapMarker(element, marker);
+                }
             });
         addressInput.value = '';
         titleInput.value = '';
@@ -426,11 +428,12 @@ function loadMapMarkers(element, mapId) {
         .then(req => req.json())
         .then(json => {
             for (const marker of json)
-                addMapMarker(element.map, marker);
+                addMapMarker(element, marker);
         });
 }
 
-async function addMapMarker(map, info) {
+async function addMapMarker(element, info) {
+    const map = element.map;
     const { Marker } = await google.maps.importLibrary("marker")
     let iconUrl;
     let showRadius = false;
@@ -467,7 +470,7 @@ async function addMapMarker(map, info) {
     };
     let marker = new Marker(options);
     if (showRadius) {
-        new google.maps.Circle({
+        const radiusControl = new google.maps.Circle({
             strokeColor: "#D47BAC",
             strokeOpacity: 0.8,
             strokeWeight: 2,
@@ -486,19 +489,24 @@ async function addMapMarker(map, info) {
 
         if (hasEditPrivileges) {
             marker.addListener('contextmenu', (e) => {
-                var menuControl
+                if (menuControl) {
+                    hideContextMenu();
+                    return;
+                }
+                let deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Delete Marker';
+                deleteButton.addEventListener('click', (e) => {
+                    hideContextMenu();
+                    let url = '/wp-admin/admin-ajax.php?action=lp_delete_marker&id=' + info.id;
+                    fetch(url)
+                        .then(req => req.json())
+                        .then(response => {
+                            marker.setMap(null);
+                            radiusControl.setMap(null);
+                        });
+                });
+                showContextMenu(element, e, [deleteButton]);
             });
-            let deleteButton = document.createElement('button');
-            deleteButton.textContent = 'Delete';
-            deleteButton.addEventListener('click', (e) => {
-                let url = '/wp-admin/admin-ajax.php?action=lp_delete_marker&id=' + info.id;
-                fetch(url)
-                    .then(req => req.json())
-                    .then(response => {
-                        marker.setMap(null);
-                    });
-            });
-
         }
         marker.addListener('click', () => {
             infowindow.open({
