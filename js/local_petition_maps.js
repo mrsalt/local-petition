@@ -308,6 +308,27 @@ async function placeNumber(number, map, position) {
     return marker;
 }
 
+var menuControl;
+function showContextMenu(parent, e, buttons) {
+    menuControl = document.createElement('div');
+    for (const button of buttons) {
+        menuControl.appendChild(button);
+    }
+
+    // Set the position for menu
+    const rect = parent.getBoundingClientRect();
+    const x = e.domEvent.clientX - rect.left;
+    const y = e.domEvent.clientY - rect.top;
+    menuControl.style.top = `${y}px`;
+    menuControl.style.left = `${x}px`;
+    parent.appendChild(menuControl);
+}
+
+function hideContextMenu() {
+    if (menuControl) menuControl.parentElement.removeChild(menuControl);
+    menuControl = undefined;
+}
+
 async function addAddMarkerButton(element, mapId) {
     hasEditPrivileges = true;
     let addressWindow = document.createElement('div');
@@ -380,31 +401,20 @@ async function addAddMarkerButton(element, mapId) {
 
     var controlsVisible = true;
     element.map.addListener('contextmenu', (e) => {
-        var menuControl
         function toggleVisibility() {
             element.map.setOptions({ mapTypeControl: !controlsVisible, panControl: !controlsVisible, fullscreenControl: !controlsVisible, zoomControl: !controlsVisible });
             addressWindow.style.display = controlsVisible ? 'none' : '';
             controlsVisible = !controlsVisible;
-            if (menuControl) menuControl.parentElement.removeChild(menuControl);
+            hideContextMenu();
         }
         if (document.fullscreenElement) {
             toggleVisibility();
             return;
         }
-        const rect = element.getBoundingClientRect();
-        const x = e.domEvent.clientX - rect.left;
-        const y = e.domEvent.clientY - rect.top;
-
-        menuControl = document.createElement('div');
         let changeButton = document.createElement('button');
         changeButton.textContent = controlsVisible ? 'Hide Controls' : 'Show Controls';
-        menuControl.appendChild(changeButton);
         changeButton.addEventListener('click', () => toggleVisibility());
-        menuControl.style.position = 'absolute';
-        // Set the position for menu
-        menuControl.style.top = `${y}px`;
-        menuControl.style.left = `${x}px`;
-        element.appendChild(menuControl);
+        showContextMenu(element, e, [changeButton]);
     });
 
     element.map.controls[google.maps.ControlPosition.BOTTOM_CENTER].push(addressWindow);
@@ -475,6 +485,9 @@ async function addMapMarker(map, info) {
         });
 
         if (hasEditPrivileges) {
+            marker.addListener('contextmenu', (e) => {
+                var menuControl
+            });
             let deleteButton = document.createElement('button');
             deleteButton.textContent = 'Delete';
             deleteButton.addEventListener('click', (e) => {
@@ -485,7 +498,7 @@ async function addMapMarker(map, info) {
                         marker.setMap(null);
                     });
             });
-            infowindow.appendChild(deleteButton);
+
         }
         marker.addListener('click', () => {
             infowindow.open({
