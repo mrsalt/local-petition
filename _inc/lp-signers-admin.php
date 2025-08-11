@@ -163,4 +163,5 @@ function lp_review_signers()
 
 function lp_fetch_signers_json_handler() {
     echo 'Just a test!';
+    wp_die();
 }
