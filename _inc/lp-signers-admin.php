@@ -162,7 +162,7 @@ function lp_review_signers()
 }
 
 function lp_fetch_signers_json_handler() {
-    $$result = lp_query_signers(apply_filters: false);
+    $result = lp_query_signers(apply_filters: false);
     $header_output = false;
     foreach ($result as $values) {
         if (!$header_output) {
