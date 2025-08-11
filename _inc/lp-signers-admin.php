@@ -2,7 +2,7 @@
 
 require_once('lp-tables-admin.php');
 
-function lp_query_signers($limit = null, $offset = 0, $apply_filters = true, $count_only = false)
+function lp_query_signers($limit = null, $offset = 0, $apply_filters = true, $count_only = false, $order_by = 'ID')
 {
     global $wpdb;
 
@@ -32,6 +32,9 @@ function lp_query_signers($limit = null, $offset = 0, $apply_filters = true, $co
     if ($apply_filters) {
         $where = build_where('signers', $filters, ['CampaignStatus' => 'Active']);
         $query .= " WHERE $where";
+    }
+    if ($order_by && !$count_only) {
+        $query .= " ORDER BY " . $order_by;
     }
     if (!$count_only && $limit !== null) {
         $query .= " LIMIT $limit OFFSET $offset";
@@ -158,7 +161,7 @@ function lp_review_signers()
         echo '<option value="' . $l . '"' . ($limit == $l ? ' selected' : '') . '>' . $l . '</option>';
     }
     echo '</select></div>';
-    echo '<a href="/wp-admin/admin-ajax.php?action=lp_fetch_signers" download="signers.csv">Download</a>';
+    echo '<a href="/wp-admin/admin-ajax.php?action=lp_fetch_signers" download="signers' . date('Y-m-d') . '.csv">Download</a>';
 }
 
 function lp_fetch_signers_json_handler() {
