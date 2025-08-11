@@ -161,7 +161,7 @@ function lp_review_signers()
         echo '<option value="' . $l . '"' . ($limit == $l ? ' selected' : '') . '>' . $l . '</option>';
     }
     echo '</select></div>';
-    echo '<a href="/wp-admin/admin-ajax.php?action=lp_fetch_signers" download="signers' . date('Y-m-d') . '.csv">Download</a>';
+    echo '<a href="/wp-admin/admin-ajax.php?action=lp_fetch_signers" download="signers-' . date('Y-m-d') . '.csv">Download</a>';
 }
 
 function lp_fetch_signers_json_handler() {
