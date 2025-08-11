@@ -164,34 +164,14 @@ function lp_review_signers()
 function lp_fetch_signers_json_handler() {
     $result = lp_query_signers(apply_filters: false);
     $header_output = false;
+    $out = fopen('php://output', 'w');
     foreach ($result as $values) {
         if (!$header_output) {
-            $first = true;
-            foreach ($values as $key => $value) {
-                if (!$first)
-                    echo ',';
-                echo $key;
-                $first = false;
-            }
-            echo "\n";
+            fputcsv($out, array_keys($values));
             $header_output = true;
         }
-        $first = true;
-        foreach ($values as $key => $value) {
-            if (!$first)
-                echo ',';
-            $value = display_value($key, $value);
-            if ($key == 'Photo') {
-                if ($value) {
-                    $img_url = '/wp-content/uploads/local-petition/' . $values['slug'] . '/' . $values['ID'] . '/' . $value;
-                    echo $img_url;
-                }
-            } else {
-                echo $value;
-            }
-            $first = false;
-        }
-        echo "\n";
+        fputcsv($out, array_values($values));
     }
+    fclose($out);
     wp_die();
 }
