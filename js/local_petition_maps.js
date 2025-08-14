@@ -409,6 +409,20 @@ async function addAddMarkerButton(element, mapId) {
     let addressInput = document.createElement('input');
     addVisitWindowButton(addressInput);
 
+    let radiusLabel = document.createElement('label');
+    radiusLabel.innerText = 'Radius (meters)';
+    addVisitWindowButton(radiusLabel);
+    let radiusInput = document.createElement('input');
+    radiusInput.value = '3219';
+    addVisitWindowButton(radiusInput);
+
+    let colorLabel = document.createElement('label');
+    colorLabel.innerText = 'Color';
+    addVisitWindowButton(colorLabel);
+    let colorInput = document.createElement('input');
+    colorInput.value = '#D47BAC';
+    addVisitWindowButton(colorInput);
+
     let titleLabel = document.createElement('label');
     titleLabel.innerText = 'Title';
     addVisitWindowButton(titleLabel);
@@ -428,6 +442,8 @@ async function addAddMarkerButton(element, mapId) {
     button.addEventListener('click', () => {
         fetch('/wp-admin/admin-ajax.php?action=lp_place_marker' +
             '&address=' + encodeURIComponent(addressInput.value) +
+            '&radius=' + encodeURIComponent(radiusInput.value) +
+            '&radius_color=' + encodeURIComponent(colorInput.value) +
             '&name=' + encodeURIComponent(titleInput.value) +
             '&type=' + encodeURIComponent(typeInput.value) +
             '&map_id=' + mapId)
@@ -485,11 +501,9 @@ async function addMapMarker(element, info) {
     const map = element.map;
     const { Marker } = await google.maps.importLibrary("marker")
     let iconUrl;
-    let showRadius = false;
     let scaledSize = undefined;
     let label = undefined;
     if (info.icon === 'Library') {
-        showRadius = true;
         iconUrl = '/wp-content/plugins/local-petition/images/logo-image-only-200px.png';
         scaledSize = { 'height': 40, 'width': 40 };
     }
@@ -507,7 +521,7 @@ async function addMapMarker(element, info) {
         };
     }
 
-    const markerLocation = { lat: parseFloat(info.latitude), lng: parseFloat(info.longitude) }
+    const markerLocation = { lat: info.latitude, lng: info.longitude }
 
     let options = {
         icon: {
@@ -518,16 +532,16 @@ async function addMapMarker(element, info) {
         }, map: map, label: label, position: markerLocation
     };
     let marker = new Marker(options);
-    if (showRadius) {
+    if (info.radius) {
         const radiusControl = new google.maps.Circle({
-            strokeColor: "#D47BAC",
+            strokeColor: info.radius_color,
             strokeOpacity: 0.8,
             strokeWeight: 2,
-            fillColor: "#D47BAC",
+            fillColor: info.radius_color,
             fillOpacity: 0.20,
             map,
             center: markerLocation,
-            radius: 3219,
+            radius: info.radius,
             clickable: false
         });
         // radius unit is meters

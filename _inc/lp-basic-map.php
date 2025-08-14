@@ -48,9 +48,10 @@ function lp_load_markers_json_handler($id = null) {
     }
     $query = $wpdb->prepare($query, $params);
     $markers = $wpdb->get_results($query, ARRAY_A);
-    foreach ($visits as $idx => $values) {
+    foreach ($markers as $idx => $values) {
         $markers[$idx]['latitude'] = floatval($values['latitude']);
         $markers[$idx]['longitude'] = floatval($values['longitude']);
+        $markers[$idx]['radius'] = intval($values['radius']);
     }
     wp_send_json($markers);
     wp_die();
@@ -81,7 +82,9 @@ function lp_place_marker_json_handler() {
         'name' => wp_unslash($_GET['name']),
         'address_id' => $address_id,
         'map_id' => $_GET['map_id'],
-        'icon' => wp_unslash($_GET['type'])
+        'icon' => wp_unslash($_GET['type']),
+        'radius' => wp_unslash($_GET['radius']),
+        'radius_color' => wp_unslash($_GET['radius_color'])
     );
     $result = $wpdb->insert($table_name, $values);
     if ($result === false) {
