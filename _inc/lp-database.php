@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.47';
+$lp_db_version = '1.48';
 
 function lp_db_install()
 {
@@ -174,6 +174,7 @@ function lp_db_install()
 		address_id mediumint(9) NOT NULL,
 		map_id mediumint(9) NOT NULL,
 		icon ENUM ('Library','Question Mark') NOT NULL DEFAULT 'Library',
+		radius mediumint(9) NOT NULL DEFAULT 0,
 		PRIMARY KEY  (id)
 	) $charset_collate;";
 	dbDelta($sql);
