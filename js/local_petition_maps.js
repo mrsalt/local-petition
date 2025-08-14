@@ -13,6 +13,7 @@ async function initMap(element, position, zoom, mapId) {
         center: position,
         disableDoubleClickZoom: true,
         streetViewControl: false,
+        scaleControl: true, // Enable the scale control
     };
     if (mapId) {
         mapOptions['mapId'] = mapId;
@@ -30,8 +31,48 @@ async function initMap(element, position, zoom, mapId) {
 
     //https://developers.google.com/maps/documentation/get-map-id
     let map = new Map(element, mapOptions);
-
+    let featureLayer = map.getFeatureLayer("LOCALITY");
     element.map = map;
+
+    highlightArea("Boise, ID", "locality", position, featureLayer);
+}
+
+async function highlightArea(query, type, locationBias, featureLayer) {
+  const request = {
+    query: query,
+    fields: ["id", "location"],
+    includedType: type,
+    locationBias: locationBias,
+  };
+  const { Place } = await google.maps.importLibrary("places");
+  const { places } = await Place.searchByText(request);
+
+  if (places.length) {
+    const place = places[0];
+
+    styleBoundary(place.id, featureLayer);
+    //map.setCenter(place.location);
+  } else {
+    console.log("No results");
+  }
+}
+
+function styleBoundary(placeid, featureLayer) {
+  // Define a style of transparent purple with opaque stroke.
+  const styleFill = {
+    strokeColor: "rgb(196, 163, 16)",//"rgb(82, 196, 16)",//"rgb(196, 184, 16)"
+    strokeOpacity: 0.9,
+    strokeWeight: 2.0,
+    fillColor: "rgb(196, 163, 16)",//"rgb(82, 196, 16)",//"rgb(196, 184, 16)"
+    fillOpacity: 0.2,
+  };
+
+  // Define the feature style function.
+  featureLayer.style = (params) => {
+    if (params.feature.placeId == placeid) {
+      return styleFill;
+    }
+  };
 }
 
 class Color {
