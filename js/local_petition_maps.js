@@ -5,16 +5,18 @@ let hasEditPrivileges = false;
 // position should be an object like this:
 // const position = { lat: -25.344, lng: 131.031 };
 // zoom should be a zoom level.  0 = whole earth, 4 = zoomed out very far.  15?
-async function initMap(element, position, zoom, mapId) {
+async function initMap(element, position, zoom, mapId, locality) {
     const { Map } = await google.maps.importLibrary("maps");
 
     let mapOptions = {
         zoom: zoom,
-        center: position,
         disableDoubleClickZoom: true,
         streetViewControl: false,
         scaleControl: true, // Enable the scale control
     };
+    if (position) {
+        mapOptions['center'] = position;
+    }
     if (mapId) {
         mapOptions['mapId'] = mapId;
     }
@@ -31,30 +33,36 @@ async function initMap(element, position, zoom, mapId) {
 
     //https://developers.google.com/maps/documentation/get-map-id
     let map = new Map(element, mapOptions);
-    let featureLayer = map.getFeatureLayer("LOCALITY");
     element.map = map;
 
-    highlightArea("Boise, ID", "locality", position, featureLayer);
+    if (locality) {
+        let featureLayer = map.getFeatureLayer("LOCALITY");
+        highlightArea(map, locality, "locality", position, featureLayer);
+    }
 }
 
-async function highlightArea(query, type, locationBias, featureLayer) {
-  const request = {
-    query: query,
-    fields: ["id", "location"],
-    includedType: type,
-    locationBias: locationBias,
-  };
-  const { Place } = await google.maps.importLibrary("places");
-  const { places } = await Place.searchByText(request);
+async function highlightArea(map, query, type, locationBias, featureLayer) {
+    let request = {
+        query: query,
+        fields: ["id", "location"],
+        includedType: type,
+    };
+    if (locationBias) {
+        request['locationBias'] = locationBias;
+    }
+    const { Place } = await google.maps.importLibrary("places");
+    const { places } = await Place.searchByText(request);
 
-  if (places.length) {
-    const place = places[0];
+    if (places.length) {
+        const place = places[0];
 
-    styleBoundary(place.id, featureLayer);
-    //map.setCenter(place.location);
-  } else {
-    console.log("No results");
-  }
+        styleBoundary(place.id, featureLayer);
+        if (!locationBias) {
+            map.setCenter(place.location);
+        }
+    } else {
+        console.warn("Locality query: No results");
+    }
 }
 
 function styleBoundary(placeid, featureLayer) {

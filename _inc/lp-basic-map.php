@@ -22,7 +22,8 @@ function lp_basic_map($atts = [], $content = null)
         $extra_script = ".then(() => { addAddMarkerButton(document.getElementById('$basic_map_id'), ".$atts['map-id'].") })\n";
     $extra_script .= ".then(() => { loadMapMarkers(document.getElementById('$basic_map_id'), ".$atts['map-id'].") })\n";
     $googleMapId = $atts['google-map-id'];
-    return lp_create_map_element($basic_map_id, 'campaign-map', true, $atts['lat'], $atts['lng'], $atts['zoom'], $googleMapId, $extra_script);
+    $locality = array_key_exists('locality', $atts) ? $atts['locality'] : null;
+    return lp_create_map_element($basic_map_id, 'campaign-map', true, $locality, $atts['lat'], $atts['lng'], $atts['zoom'], $googleMapId, $extra_script);
 }
 
 function lp_load_markers_json_handler($id = null) {
