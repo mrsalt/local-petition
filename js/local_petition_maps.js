@@ -1,6 +1,7 @@
 "use strict";
 
 let hasEditPrivileges = false;
+const searchParams = new URL(document.location.href).searchParams;
 
 // position should be an object like this:
 // const position = { lat: -25.344, lng: 131.031 };
@@ -38,6 +39,28 @@ async function initMap(element, position, zoom, mapId, locality) {
     if (locality) {
         let featureLayer = map.getFeatureLayer("LOCALITY");
         highlightArea(map, locality, "locality", position, featureLayer);
+    }
+
+    const interactiveContainer = element.closest('div.interactive-map-container');
+    if (interactiveContainer) {
+        const rect = interactiveContainer.getBoundingClientRect();
+        interactiveContainer.style.height = 'calc(100vh - '+(rect.top)+'px)';
+        let fullscreenButton = document.createElement('button');
+        fullscreenButton.textContent = 'Fullscreen';
+        let fullscreenMode = false;
+        fullscreenButton.addEventListener('click', () => {
+            fullscreenMode = !fullscreenMode;
+            if (fullscreenMode) {
+                fullscreenButton.textContent = 'Exit Fullscreen';
+                interactiveContainer.requestFullscreen();
+            }
+            else {
+                fullscreenButton.textContent = 'Fullscreen';
+                document.exitFullscreen();
+            }
+        });
+        let sideBar = interactiveContainer.querySelector('div.interactive-map-sidebar');
+        sideBar.appendChild(fullscreenButton);
     }
 }
 

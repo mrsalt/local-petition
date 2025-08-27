@@ -20,7 +20,7 @@ function lp_campaign_map($atts = [], $content = null)
     // mapId could be configured in admin pages
     $mapId = '8c6c1d4242e1a575';
     $locality = array_key_exists('locality', $atts) ? $atts['locality'] : null;
-    return lp_create_map_element($campaign_map_id, 'campaign-map', true, $locality, $atts['lat'], $atts['lng'], $atts['zoom'], $mapId, $extra_script);
+    return lp_create_map_element($campaign_map_id, 'campaign-map', true, $locality, $atts['lat'], $atts['lng'], $atts['zoom'], $mapId, $extra_script, false);
 }
 
 function load_route_info($id = null)

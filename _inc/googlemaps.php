@@ -58,9 +58,19 @@ function lp_get_map_id()
     return 'map-' . $map_counter;
 }
 
-function lp_create_map_element($id, $class_name, $load_marker_clusterer, $locality = null, $lat = null, $lng = null, $zoom = 'null', $mapId = 'null', $additional_script = '')
+function lp_create_map_element($id, $class_name, $load_marker_clusterer, $locality = null, $lat = null, $lng = null, $zoom = 'null', $mapId = 'null', $additional_script = '', $interactive = false)
 {
-    $content = '<div id="' . $id . '" class="' . $class_name . '"></div>';
+    $content = '';
+    if ($interactive) {
+        $content .= '<div class="interactive-map-container">';
+        $content .=   '<div id="' . $id . '" class="interactive-map"></div>';
+        $content .=   '<div class="interactive-map-sidebar">';
+        $content .=   '</div>';
+        $content .= '</div>';
+    }
+    else {
+        $content .= '<div id="' . $id . '" class="' . $class_name . '"></div>';
+    }
     global $map_api_loaded;
     if (!$map_api_loaded) {
         $api_key = get_cfg_var('google_maps_api_key');

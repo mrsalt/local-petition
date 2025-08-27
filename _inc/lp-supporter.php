@@ -12,7 +12,7 @@ function lp_supporter_map($atts = [], $content = null)
     $extra_script = ".then(() => { addMapSupporterOverlays(document.getElementById('$id'), $gridLat, $gridLng, $latStep, $lngStep, $minSupporters) })";
     $mapId = '8c6c1d4242e1a575';
     $locality = array_key_exists('locality', $atts) ? $atts['locality'] : null;
-    return lp_create_map_element($id, 'supporter-map', is_user_logged_in(), $locality, $atts['lat'], $atts['lng'], $atts['zoom'], $mapId, $extra_script);
+    return lp_create_map_element($id, 'supporter-map', is_user_logged_in(), $locality, $atts['lat'], $atts['lng'], $atts['zoom'], $mapId, $extra_script, false);
 }
 
 function lp_get_supporters_map_coordinates_json_handler()
