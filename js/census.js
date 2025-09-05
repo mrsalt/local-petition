@@ -8,7 +8,7 @@ async function getCensusAreasWithPopulation(bbox, {
   includeGeoJSON = true,        // Convert ESRI geometry to simple GeoJSON (best-effort)
   tigerServiceUrl = 'https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer'
 } = {}) {
-  if (!censusApiKey) throw new Error('censusApiKey is required');
+  //if (!censusApiKey) throw new Error('censusApiKey is required');
 
   // 1) Resolve TIGER layer ID by geography name
   const layerId = await findLayerIdByGeography(tigerServiceUrl, geography);
@@ -145,7 +145,8 @@ async function fetchPopulationByFeatures(features, { geography, year, dataset, v
   if (geography === 'county') {
     // For each state, request all counties, then filter
     for (const state of states) {
-      const url = `https://api.census.gov/data/${year}/${dataset}?get=NAME,${variable}&for=county:*&in=state:${state}&key=${encodeURIComponent(censusApiKey)}`;
+      let url = `https://api.census.gov/data/${year}/${dataset}?get=NAME,${variable}&for=county:*&in=state:${state}`;
+      if (censusApiKey) url += `&key=${encodeURIComponent(censusApiKey)}`;
       const rows = await fetchJSON(url);
       const [header, ...data] = rows;
       const idx = indexMap(header);
