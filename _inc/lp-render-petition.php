@@ -335,7 +335,7 @@ function lp_render_petition_form($style, $content, $step, $signer = null)
         $content .= '<p>' . get_input('Address Line 2 (optional)', 'line_2', required: false, max_chars: 40, style: $style) . '</p>';
         $content .= '<p>' . get_input('City', 'city', required: true, max_chars: 20, style: $style) . '</p>';
         $content .= '<p>' . get_state_input('State', 'state', required: true, style: $style) . '</p>';
-        $content .= '<p>' . get_input('Zip', 'zip', required: true, max_chars: 5, style: $style) . '</p>';
+        //$content .= '<p>' . get_input('Zip', 'zip', required: true, max_chars: 5, style: $style) . '</p>';
         $content .= '<p>' . get_input('Email', 'email', required: false, max_chars: 50, type: 'email', style: $style) . '</p>';
         $content .= '<p>' . get_input('Phone', 'phone', required: false, max_chars: 20, type: 'tel', style: $style) . '</p>';
         $submit_title = 'Next';
@@ -396,7 +396,7 @@ function add_bulk_sign_inputs($campaign_id)
     $query = prepare_query("SELECT id, name FROM {$table_name} WHERE `campaign_id` = %s AND `is_helper` = 1 ORDER BY name", $campaign_id);
     $results = $wpdb->get_results($query);
     //$content .= '<pre>'.var_export($results, true).'</pre>';
-    $content .= '<select name="proxy_id" required="true">';
+    $content .= '<select name="proxy_id" required="'.($is_proxy ? 'true' : 'false').'">';
     foreach ($results as $helper) {
         $content .= '<option value="' . $helper->id . '"';
         if ($helper->id == $proxy_id) $content .= ' selected';
@@ -404,12 +404,19 @@ function add_bulk_sign_inputs($campaign_id)
     }
     $content .= '</select>';
     $content .= '</p>';
-    $content .= '<p>Date Collected: <input type="text" name="proxy_date" required="true" placeholder="YYYY-MM-DD" value="' . $proxy_date . '">';
+    $content .= '<p>Date Collected: <input type="text" name="proxy_date" required="'.($is_proxy ? 'true' : 'false').'" placeholder="YYYY-MM-DD" value="' . $proxy_date . '">';
     $content .= '<p><i>Tip: multiple names can be input at once.  Put a comma between each name.</i></p>';
     $content .= '</div>';
     if (array_key_exists('city', $_POST)) {
         $_SESSION['city'] = $_POST['city'];
-        $_SESSION['zip'] = $_POST['zip'];
+        //$_SESSION['zip'] = $_POST['zip'];
     }
+    $content .= '<script>';
+    $content .= 'document.querySelector(\'input[name="is_proxy"]\').addEventListener(\'change\', (event) => {';
+    $content .= '  const is_proxy = event.target.checked;';
+    $content .= '  document.querySelector(\'select[name="proxy_id"]\').required = is_proxy;';
+    $content .= '  document.querySelector(\'input[name="proxy_date"]\').required = is_proxy;';
+    $content .= '});';
+    $content .= '</script>';
     return $content;
 }
