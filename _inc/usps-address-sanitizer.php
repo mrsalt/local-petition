@@ -101,9 +101,11 @@ function sanitize_address($address)
         'streetAddress' => $address['line_1'],
         'secondaryAddress' => $address['line_2'],
         'city' => $address['city'],
-        'state' => $address['state'],
-        'ZIPCode' => $address['zip']
+        'state' => $address['state']
     );
+    if (array_key_exists('zip', $address)) {
+        $params['ZIPCode'] = $address['zip'];
+    }
     $result = make_request('GET', $url, $params, $headers = array('Authorization' => 'Bearer ' . $usps_oauth['access_token'], 'Content-Type' => 'application/x-www-form-urlencoded'));
     $response = json_decode($result['response'], true); // associative array
     if ($result['http_code'] != 200) {
