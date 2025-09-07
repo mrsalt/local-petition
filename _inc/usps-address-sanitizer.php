@@ -126,7 +126,10 @@ function get_address_id($address)
 {
     global $wpdb;
     $address_table_name = $wpdb->prefix . 'lp_address';
-    $query = prepare_query("SELECT id FROM {$address_table_name} WHERE line_1 = %s AND line_2 = %s AND zip = %s", $address['line_1'], $address['line_2'], $address['zip']);
+    if (array_key_exists('zip', $address))
+        $query = prepare_query("SELECT id FROM {$address_table_name} WHERE line_1 = %s AND line_2 = %s AND zip = %s", $address['line_1'], $address['line_2'], $address['zip']);
+    else
+        $query = prepare_query("SELECT id FROM {$address_table_name} WHERE line_1 = %s AND line_2 = %s AND city = %s AND `state` = %s", $address['line_1'], $address['line_2'], $address['city'], $address['state']);
     $results = $wpdb->get_results($query);
     if (count($results) == 0) {
         return null;
@@ -144,7 +147,7 @@ function store_address($address, $normalized_id = null)
         'line_2' => $address['line_2'],
         'city'   => $address['city'],
         'state'  => $address['state'],
-        'zip'    => $address['zip'],
+        'zip'    => $address['zip'] ?? null,
         'zip_ext' => $address['zip_ext'] ?? null,
         'normalized_id' => $normalized_id
     );
