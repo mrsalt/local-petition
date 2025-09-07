@@ -60,7 +60,7 @@ function get_oauth_token()
         if (isset($oauth_obj['issue_time'])) {
             // If issue_time is less than 7 hours ago, it should still be good.  Technically
             // it's supposed to be good for 8 hours.
-            if ($oauth_obj['issue_time'] < ($now + 7 * 3600)) {
+            if ($oauth_obj['issue_time'] > ($now + 7 * 3600)) {
                 return $oauth_obj['access_token'];
             }
         }
