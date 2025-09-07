@@ -71,7 +71,7 @@ function lp_place_marker_json_handler() {
     $formatted_address = wp_unslash($_GET['address']);
     $address = parse_address_with_commas($formatted_address);
     $sanitized_address = sanitize_address($address);
-    $address_id = store_address($address);
+    $address_id = store_address($sanitized_address);
     $coordinates = geocode($address);
     if ($coordinates)
         update_coordinates($address_id, $coordinates);
