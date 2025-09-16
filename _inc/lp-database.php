@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.49';
+$lp_db_version = '1.50';
 
 function lp_db_install()
 {
@@ -42,7 +42,7 @@ function lp_db_install()
 		line_2 varchar(40),
 		city varchar(20) NOT NULL,
 		`state` char(2) NOT NULL,
-		zip char(5) NOT NULL,
+		zip char(5),
 		zip_ext char(4),
 		latitude decimal(10,7),
 		longitude decimal(10,7),
