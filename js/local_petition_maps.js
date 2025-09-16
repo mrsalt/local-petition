@@ -60,7 +60,22 @@ async function initMap(element, position, zoom, mapId, locality) {
             }
         });
         let sideBar = interactiveContainer.querySelector('div.interactive-map-sidebar');
-        sideBar.appendChild(fullscreenButton);
+        function addSidebarRow(items) {
+            let row = document.createElement('div');
+            row.classList.add('sidebar-row');
+            for (const item of items) {
+                row.appendChild(item);
+            }
+            sideBar.appendChild(row);
+        };
+        addSidebarRow([fullscreenButton]);
+
+        let checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        let label = document.createElement('label');
+        label.textContent = 'Borders Overlap';
+        map.
+        addSidebarRow([checkbox, label]);
     }
 }
 
