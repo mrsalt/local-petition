@@ -74,7 +74,7 @@ async function initMap(element, position, zoom, mapId, locality) {
         checkbox.type = 'checkbox';
         let label = document.createElement('label');
         label.textContent = 'Borders Overlap';
-        map.
+        map.lpcontrols = { bordersOverlap: checkbox };
         addSidebarRow([checkbox, label]);
     }
 }
