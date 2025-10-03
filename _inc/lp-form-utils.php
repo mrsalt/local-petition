@@ -58,12 +58,18 @@ function add_submit_button_with_captcha($buttons)
             '      grecaptcha.execute("' . reCAPTCHA_site_key . '", {action: "submit"}).then(function(token) {' .
             '        captchaCompleted = true;' .
             '        document.getElementById("g-recaptcha-response").value = token;' .
+            '        if (event.submitter) {' .
+            '          let proxy = document.getElementById("g-recaptcha-submit-proxy");' .
+            '          proxy.name = event.submitter.name;' .
+            '          proxy.value = event.submitter.value;' .
+            '        }' .
             '        document.getElementById("local-petition-form").submit();' .
             '      });' .
             '    });' .
             '  });' .
             '})();' .
             '</script>' .
+            '<input type="hidden" id="g-recaptcha-submit-proxy">'.
             '<input type="hidden" name="g-recaptcha-response" id="g-recaptcha-response">';
     }
     foreach ($buttons as $button) {
