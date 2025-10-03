@@ -87,7 +87,7 @@ function lp_render_contact_form($style)
     $content .= '<p>' . get_input('Name', 'submitter_name', required: true, max_chars: 50, style: $style) . '</p>';
     $content .= '<p>' . get_input('Email', 'email', required: true, max_chars: 50, type: 'email', style: $style) . '</p>';
     $content .= '<p>' . get_textarea('Comments', 'comments', required: true, style: $style) . '</p>';
-    $content .= add_submit_button_with_captcha('Submit');
+    $content .= add_submit_button_with_captcha([array('title' => 'Submit')]);
     $content .= '</form>';
     return $content;
 }

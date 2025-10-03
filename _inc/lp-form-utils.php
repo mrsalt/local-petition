@@ -43,10 +43,11 @@ function check_captcha_in_post_body(&$content, &$continue_form_render)
     return true;
 }
 
-function add_submit_button_with_captcha($title)
+function add_submit_button_with_captcha($buttons)
 {
+    $text = '';
     if (LP_PRODUCTION) {
-        return
+        $text .=
             '<script>' .
             '(function () {' .
             '  let captchaCompleted = false;' .
@@ -63,11 +64,20 @@ function add_submit_button_with_captcha($title)
             '  });' .
             '})();' .
             '</script>' .
-            '<input type="hidden" name="g-recaptcha-response" id="g-recaptcha-response">' .
-            '<p><button type="submit" class="g-recaptcha">' . $title . '</button></p>';
-    } else {
-        return '<p><button type="submit">' . $title . '</button></p>';
+            '<input type="hidden" name="g-recaptcha-response" id="g-recaptcha-response">';
     }
+    foreach ($buttons as $button) {
+        $text .= '<p><button type="submit"';
+        $text .= ' class="g-recaptcha"';
+        if (array_key_exists('name', $button))
+            $text .= ' name="'.$button['name'].'"';
+        if (array_key_exists('value', $button))
+            $text .= ' value="'.$button['value'].'"';
+        if (array_key_exists('description', $button))
+            $text .= ' title="'.$button['description'].'"';
+        $text .= '>' . $button['title'] . '</button></p>';
+    }
+    return $text;
 }
 
 function get_input($label, $id, $required = false, $max_chars = false, $type = 'text', $style = 'label', $autofocus = false, $placeholder = null)

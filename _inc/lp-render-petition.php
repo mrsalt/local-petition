@@ -140,6 +140,33 @@ function lp_attempt_submit($style, &$continue_form_render)
             'email'               => $email,
             'phone'               => $phone,
         );
+
+        if (array_key_exists('fast_submit', $_POST) && $_POST['fast_submit'] == 'true') {
+            $step_2 = array(
+                'campaign_id'         => $_SESSION['campaign']->id,
+                'title'               => null,
+                'comments'            => null,
+                'is_supporter'        => 1,
+                'share_granted'       => 0,
+                'is_helper'           => 0
+            );
+
+            $values = array_merge($_SESSION['lp_petition_step_1'], $step_2);
+            $sensitive_info_changed = false;
+
+            $signer = sign_petition($values, $sensitive_info_changed);
+            $content .= '<div class="submit-error">Submission successful</div>';
+            unset($_SESSION['lp_petition_step_1']);
+            unset($_POST['signer_name']);
+            unset($_POST['line_1']);
+            unset($_POST['line_2']);
+            unset($_POST['city']);
+            unset($_POST['state']);
+            unset($_POST['email']);
+            unset($_POST['phone']);
+            $continue_form_render = true;
+            return $content;
+        }
         $content = lp_render_petition_form($style, $content, 2, $signer);
     } else {
 
@@ -377,7 +404,11 @@ function lp_render_petition_form($style, $content, $step, $signer = null)
         $submit_title = 'Submit';
         $content .= '<script>watchImageInput(document.getElementById(\'photo\'), 0.8, 1600, 1600)</script>';
     }
-    $content .= add_submit_button_with_captcha($submit_title);
+    $buttons = [array('title' => $submit_title)];
+    if (is_user_logged_in()) {
+        $buttons[] = array('title' => 'Sign (Fast Method)', 'name' => 'fast_submit', 'value' => 'true', 'description' => 'Do not use if you are signing for someone who is < 18 years');
+    }
+    $content .= add_submit_button_with_captcha($buttons);
     $content .= '<input type="hidden" name="lp-petition-step" value="' . $step . '">';
     $content .= '</form>';
     return $content;
