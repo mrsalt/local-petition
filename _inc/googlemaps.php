@@ -29,7 +29,7 @@ function geocode($address)
     }
     curl_close($ch);
 
-    error_log($result);
+    //error_log($result);
     $json = json_decode($result);
     if ($json->status != 'OK') {
         error_log('Geocode request failed.  $json =' . $result);
