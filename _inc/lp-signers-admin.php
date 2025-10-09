@@ -20,7 +20,7 @@ function lp_query_signers($limit = null, $offset = 0, $apply_filters = true, $co
     } else {
         $query .= "campaign.name 'Campaign', campaign.slug,
                      signer.id 'ID', signer.status 'Status', signer.created 'Created', signer.name 'Name', signer.age 'Age', signer.photo_file 'Photo', signer.title 'Title', signer.email 'Email', signer.email_status 'Email Status', signer.phone 'Phone', signer.comments 'Comments', signer.share_granted 'Share Public', signer.is_helper 'Helper', signer.is_supporter 'Supporter',
-                     address.line_1 'Line 1', address.line_2 'Line 2', address.city 'City', address.state 'State', address.neighborhood 'Neighborhood',
+                     address.line_1 'Line 1', address.line_2 'Line 2', address.city 'City', address.state 'State', address.zip 'Zip', address.neighborhood 'Neighborhood',
                      signer_proxy.name 'Collected By', users.display_name 'Entered By' ";
     }
     $query .= "FROM `$table_name` signer
