@@ -109,7 +109,7 @@ function sanitize_address($address)
     $result = make_request('GET', $url, $params, $headers = array('Authorization' => 'Bearer ' . $usps_oauth['access_token'], 'Content-Type' => 'application/x-www-form-urlencoded'));
     $response = json_decode($result['response'], true); // associative array
     if ($result['http_code'] != 200) {
-        return array('Error' => $response['error']['message']);
+        return array('Error' => $response['error']['message'], 'params' => $params);
     }
     $address = $response['address'];
     return array(
@@ -173,37 +173,33 @@ function update_coordinates($address_id, $coordinates)
 }
 
 // Number of parts = number of commas plus one.
-// 3 parts:
-// 13319 W Silverbrook Dr, Boise, ID 83713
-// 4 parts:
-// 13319 W Silverbrook Dr, Boise, ID 83713, USA <-- we assume this format if there are 4 parts
-// 13319 W Silverbrook Dr, Apt B, Boise, ID 83713
-// 5 parts:
-// 13319 W Silverbrook Dr, Apt B, Boise, ID 83713, USA
+// 3-4 parts:
+// 13319 W Silverbrook Dr, Boise, ID[,] 83713
+// 4-5 parts:
+// 13319 W Silverbrook Dr, Boise, ID[,] 83713, USA <-- we assume this format if there are 4 parts
+// 13319 W Silverbrook Dr, Apt B, Boise, ID[,] 83713
+// 5-6 parts:
+// 13319 W Silverbrook Dr, Apt B, Boise, ID[,] 83713, USA
 function parse_address_with_commas($formatted_address)
 {
-    $parts = explode(', ', $formatted_address);
-    if (count($parts) == 3 || count($parts) == 4)
-        $zip_part = 2;
-    else if (count($parts) == 5)
-        $zip_part = 3;
-    else
-        throw new Exception('Address format unexpected: ' + $formatted_address);
-    $city = strtoupper($parts[$zip_part - 1]);
-    $sep = strpos($parts[$zip_part], ' ');
-    if ($sep !== false) {
-        $state = substr($parts[$zip_part], 0, $sep);
-        $zip = substr($parts[$zip_part], $sep + 1);
-    } else {
-        $state = $parts[$zip_part];
-        $zip = '';
+    // Single pattern: line1[, line2], city, ST[,]? ZIP [, country]
+    $pattern = '/^\s*(.+?)\s*(?:,\s*(.+?)\s*)?,\s*([^,]+?)\s*,\s*([A-Za-z]{2})\s*,?\s*(\d{5}(?:-\d{4})?)\s*(?:,.*)?$/u';
+
+    if (preg_match($pattern, $formatted_address, $m)) {
+        $line_1 = strtoupper($m[1]);
+        $line_2 = isset($m[2]) && $m[2] !== '' ? strtoupper($m[2]) : null;
+        $city = strtoupper($m[3]);
+        $state = strtoupper($m[4]);
+        $zip = $m[5];
+
+        return array(
+            'line_1' => $line_1,
+            'line_2' => $line_2,
+            'city' => $city,
+            'state' => $state,
+            'zip' => $zip
+        );
     }
 
-    return array(
-        'line_1' => strtoupper($parts[0]),
-        'line_2' => count($parts) == 5 ? strtoupper($parts[1]) : null,
-        'city' => $city,
-        'state' => $state,
-        'zip' => $zip
-    );
+    throw new Exception('Address format invalid.  Expected format: line1[, line2], city, ST ZIP');
 }
