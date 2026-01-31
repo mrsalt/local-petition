@@ -18,7 +18,7 @@ function lp_basic_map($atts = [], $content = null)
     $interactive = array_key_exists('interactive', $atts) && $atts['interactive'] == 'yes';
 
     if (is_user_logged_in()) {
-        $extra_script = ".then(() => { addAddMarkerButton(document.getElementById('$basic_map_id'), ".$atts['map-id'].") })\n";
+        $extra_script = ".then(() => { addAddItemButton(document.getElementById('$basic_map_id'), ".$atts['map-id'].") })\n";
     }
     if (array_key_exists('map-id', $atts) || array_key_exists('map-id', $_GET)) {
         $map_id = array_key_exists('map-id', $atts) ? $atts['map-id'] : $_GET['map-id'];
@@ -108,6 +108,8 @@ function lp_place_map_item_json_handler() {
         $values['icon'] = wp_unslash($_GET['markerType']);
         $values['radius'] = wp_unslash($_GET['radius']);
         $values['radius_color'] = wp_unslash($_GET['color']);
+        if (array_key_exists('locality_id', $_GET) && $_GET['locality_id'] != '')
+            $values['locality_id'] = wp_unslash($_GET['locality_id']);
     } else {
         wp_send_json(array('error' => 'Invalid type: ' . $_GET['type']), 400);
         wp_die();

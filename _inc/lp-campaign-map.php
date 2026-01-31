@@ -13,6 +13,8 @@ function lp_campaign_map($atts = [], $content = null)
         return "<p>Please <a href=\"/wp-login.php\">login</a> to access this page</p>";
         //auth_redirect();
     }
+    wp_enqueue_script('local_petition_routes', plugins_url('js/local_petition_routes.js', __FILE__), array(), LOCAL_PETITION_VERSION);
+
     global $campaign_map_id;
     $campaign_map_id = 'campaign-map';
     $extra_script = ".then(() => { addMapSupporterOverlays(document.getElementById('$campaign_map_id')) })" .
