@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.51';
+$lp_db_version = '1.52';
 
 function lp_db_install()
 {
@@ -176,6 +176,7 @@ function lp_db_install()
 		icon ENUM ('Library','Question Mark') NOT NULL DEFAULT 'Library',
 		radius mediumint(9) NOT NULL DEFAULT 0,
 		radius_color varchar(20) NULL,
+		locality_id mediumint(9) NULL,
 		PRIMARY KEY  (id)
 	) $charset_collate;";
 	dbDelta($sql);
@@ -185,6 +186,7 @@ function lp_db_install()
 	}
 
 	$table_name = $wpdb->prefix . 'lp_map_localities';
+	$locality_table_name = $table_name;
 	$sql = "CREATE TABLE $table_name (
 		id mediumint(9) NOT NULL AUTO_INCREMENT,
 		created timestamp DEFAULT CURRENT_TIMESTAMP,
@@ -198,6 +200,11 @@ function lp_db_install()
 	if (!check_for_constraint('locality_address_fk', 'FOREIGN KEY')) {
 		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT locality_address_fk  FOREIGN KEY (address_id)  REFERENCES $address_table_name(id)");
 		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT locality_map_fk  FOREIGN KEY (map_id)  REFERENCES $map_table_name(id)");
+	}
+
+	if (!check_for_constraint('marker_locality_fk', 'FOREIGN KEY')) {
+		$table_name = $wpdb->prefix . 'lp_marker';
+		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT marker_locality_fk FOREIGN KEY (locality_id) REFERENCES $locality_table_name(id)");
 	}
 
 	error_log('Notice: updating lp_db_version to ' . $lp_db_version);
