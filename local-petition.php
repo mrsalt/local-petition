@@ -82,6 +82,8 @@ add_action('wp_ajax_lp_get_supporters_map_coordinates_json', 'lp_get_supporters_
 add_action('wp_ajax_nopriv_lp_get_supporters_map_coordinates_json', 'lp_get_supporters_map_coordinates_json_handler');
 add_action('wp_ajax_lp_load_markers_json', 'lp_load_markers_json_handler');
 add_action('wp_ajax_nopriv_lp_load_markers_json', 'lp_load_markers_json_handler');
+add_action('wp_ajax_lp_load_localities_json', 'lp_load_localities_json_handler');
+add_action('wp_ajax_nopriv_lp_load_localities_json', 'lp_load_localities_json_handler');
 
 // AJAX handlers only for logged in users
 add_action('wp_ajax_lp_get_map_routes', 'lp_get_map_routes_json_handler');
@@ -91,7 +93,7 @@ add_action('wp_ajax_lp_get_users', 'lp_get_users_json_handler');
 add_action('wp_ajax_lp_update_route_number_position', 'lp_update_route_number_position_json_handler');
 add_action('wp_ajax_lp_get_visits', 'lp_get_visits_json_handler');
 add_action('wp_ajax_lp_record_route_visit', 'lp_record_route_visit_json_handler');
-add_action('wp_ajax_lp_place_marker', 'lp_place_marker_json_handler');
+add_action('wp_ajax_lp_place_map_item', 'lp_place_map_item_json_handler');
 add_action('wp_ajax_lp_delete_marker', 'lp_delete_marker_json_handler');
 add_action('wp_ajax_lp_fetch_signers', 'lp_fetch_signers_json_handler');
 

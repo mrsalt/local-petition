@@ -23,6 +23,9 @@ function lp_basic_map($atts = [], $content = null)
     if (array_key_exists('map-id', $atts) || array_key_exists('map-id', $_GET)) {
         $map_id = array_key_exists('map-id', $atts) ? $atts['map-id'] : $_GET['map-id'];
         $extra_script .= ".then(() => { loadMapMarkers(document.getElementById('$basic_map_id'), ".$map_id.") })\n";
+        if (array_key_exists('localities', $atts) && $atts['localities'] == 'yes') {
+            $extra_script .= ".then(() => { loadMapLocalities(document.getElementById('$basic_map_id'), ".$map_id.") })\n";
+        }
     }
 
     $googleMapId = $atts['google-map-id'];
@@ -61,7 +64,7 @@ function lp_load_markers_json_handler($id = null) {
     wp_die();
 }
 
-function lp_place_marker_json_handler() {
+function lp_place_map_item_json_handler() {
     if (!array_key_exists('campaign', $_SESSION)) {
         wp_send_json(array('error' => 'No campaign found in $_SESSION'), 500);
         wp_die();
@@ -73,28 +76,51 @@ function lp_place_marker_json_handler() {
     }
 
     $formatted_address = wp_unslash($_GET['address']);
-    $address = parse_address_with_commas($formatted_address);
+    try {
+        $address = parse_address_with_commas($formatted_address);
+    } catch (Exception $e) {
+        wp_send_json(array('error' => 'Address parsing failed', 'details' => $e->getMessage()), 400);
+        wp_die();
+    }
     $sanitized_address = sanitize_address($address);
+    if (array_key_exists('Error', $sanitized_address)) {
+        wp_send_json(array('error' => 'Address sanitization failed', 'details' => $sanitized_address), 400);
+        wp_die();
+    }
     $address_id = store_address($sanitized_address);
     $coordinates = geocode($address);
     if ($coordinates)
         update_coordinates($address_id, $coordinates);
 
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'lp_marker';
     $values = array(
         'name' => wp_unslash($_GET['name']),
         'address_id' => $address_id,
         'map_id' => $_GET['map_id'],
-        'icon' => wp_unslash($_GET['type']),
-        'radius' => wp_unslash($_GET['radius']),
-        'radius_color' => wp_unslash($_GET['radius_color'])
     );
+
+    global $wpdb;
+    if ($_GET['type'] == 'Locality') {
+        $table_name = $wpdb->prefix . 'lp_map_localities';
+        $values['color'] = wp_unslash($_GET['color']);
+    }
+    else if ($_GET['type'] == 'Marker') {
+        $table_name = $wpdb->prefix . 'lp_marker';
+        $values['icon'] = wp_unslash($_GET['markerType']);
+        $values['radius'] = wp_unslash($_GET['radius']);
+        $values['radius_color'] = wp_unslash($_GET['color']);
+    } else {
+        wp_send_json(array('error' => 'Invalid type: ' . $_GET['type']), 400);
+        wp_die();
+    }
+
     $result = $wpdb->insert($table_name, $values);
     if ($result === false) {
         throw new Exception('Failed to insert into ' . $table_name);
     }
-    lp_load_markers_json_handler(id: intval($wpdb->insert_id));
+    if ($_GET['type'] == 'Locality')
+        lp_load_localities_json_handler(id: intval($wpdb->insert_id));
+    else if ($_GET['type'] == 'Marker')
+        lp_load_markers_json_handler(id: intval($wpdb->insert_id));
 }
 
 function lp_delete_marker_json_handler() {
@@ -118,5 +144,35 @@ function lp_delete_marker_json_handler() {
         throw new Exception('Failed to delete from ' . $table_name);
     }
     wp_send_json(true);
+    wp_die();
+}
+
+function lp_load_localities_json_handler($id = null) {
+    if (!array_key_exists('campaign', $_SESSION)) {
+        wp_send_json(array('error' => 'No campaign found in $_SESSION'), 500);
+        wp_die();
+    }
+
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'lp_map_localities';
+    $address_table = $wpdb->prefix . 'lp_address';
+
+    $query = "SELECT locality.*, address.line_1, address.line_2, address.latitude, address.longitude, address.city, address.`state`
+            FROM `$table_name` locality
+            JOIN `$address_table` address ON address.id = locality.address_id
+            WHERE locality.map_id = %d";
+    $params = array($_GET['map_id']);
+
+    if ($id) {
+        $query .= " AND locality.id = %d";
+        $params[] = $id;
+    }
+    $query = $wpdb->prepare($query, $params);
+    $localities = $wpdb->get_results($query, ARRAY_A);
+    foreach ($localities as $idx => $values) {
+        $localities[$idx]['latitude'] = floatval($values['latitude']);
+        $localities[$idx]['longitude'] = floatval($values['longitude']);
+    }
+    wp_send_json($localities);
     wp_die();
 }

@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.50';
+$lp_db_version = '1.51';
 
 function lp_db_install()
 {
@@ -184,7 +184,23 @@ function lp_db_install()
 		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT map_address_fk  FOREIGN KEY (map_id)  REFERENCES $map_table_name(id)");
 	}
 
-	error_log('Notice: updating lp_db_version to ' . $installed_ver);
+	$table_name = $wpdb->prefix . 'lp_map_localities';
+	$sql = "CREATE TABLE $table_name (
+		id mediumint(9) NOT NULL AUTO_INCREMENT,
+		created timestamp DEFAULT CURRENT_TIMESTAMP,
+		name varchar(50) NOT NULL,
+		address_id mediumint(9) NOT NULL,
+		map_id mediumint(9) NOT NULL,
+		color varchar(20) NULL,
+		PRIMARY KEY  (id)
+	) $charset_collate;";
+	dbDelta($sql);
+	if (!check_for_constraint('locality_address_fk', 'FOREIGN KEY')) {
+		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT locality_address_fk  FOREIGN KEY (address_id)  REFERENCES $address_table_name(id)");
+		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT locality_map_fk  FOREIGN KEY (map_id)  REFERENCES $map_table_name(id)");
+	}
+
+	error_log('Notice: updating lp_db_version to ' . $lp_db_version);
 	if (!isset($installed_ver))
 		add_option('lp_db_version', $lp_db_version);
 	else

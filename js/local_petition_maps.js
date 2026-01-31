@@ -37,8 +37,7 @@ async function initMap(element, position, zoom, mapId, locality) {
     element.map = map;
 
     if (locality) {
-        let featureLayer = map.getFeatureLayer("LOCALITY");
-        highlightArea(map, locality, "locality", position, featureLayer);
+        highlightArea(map, 'locality', {'name': locality, 'latitude': position.lat, 'longitude': position.lng, 'color': 'rgb(196, 163, 16)'});
     }
 
     const interactiveContainer = element.closest('div.interactive-map-container');
@@ -79,14 +78,15 @@ async function initMap(element, position, zoom, mapId, locality) {
     }
 }
 
-async function highlightArea(map, query, type, locationBias, featureLayer) {
+async function highlightArea(map, type, locality) {
+    let featureLayer = map.getFeatureLayer("LOCALITY");
     let request = {
-        query: query,
+        textQuery: locality['name'],
         fields: ["id", "location"],
         includedType: type,
     };
-    if (locationBias) {
-        request['locationBias'] = locationBias;
+    if (locality['latitude'] && locality['longitude']) {
+        request['locationBias'] = {'lat': locality['latitude'], 'lng': locality['longitude']};
     }
     const { Place } = await google.maps.importLibrary("places");
     const { places } = await Place.searchByText(request);
@@ -94,8 +94,8 @@ async function highlightArea(map, query, type, locationBias, featureLayer) {
     if (places.length) {
         const place = places[0];
 
-        styleBoundary(place.id, featureLayer);
-        if (!locationBias) {
+        styleBoundary(place.id, featureLayer, locality['color']);
+        if (!request['locationBias']) {
             map.setCenter(place.location);
         }
     } else {
@@ -103,13 +103,13 @@ async function highlightArea(map, query, type, locationBias, featureLayer) {
     }
 }
 
-function styleBoundary(placeid, featureLayer) {
+function styleBoundary(placeid, featureLayer, color) {
   // Define a style of transparent purple with opaque stroke.
   const styleFill = {
-    strokeColor: "rgb(196, 163, 16)",//"rgb(82, 196, 16)",//"rgb(196, 184, 16)"
+    strokeColor: color,
     strokeOpacity: 0.9,
     strokeWeight: 2.0,
-    fillColor: "rgb(196, 163, 16)",//"rgb(82, 196, 16)",//"rgb(196, 184, 16)"
+    fillColor: color,
     fillOpacity: 0.2,
   };
 
@@ -424,14 +424,15 @@ async function addAddMarkerButton(element, mapId) {
     let addressLine = document.createElement('div');
     addressWindow.appendChild(addressLine);
 
-    let buttonCount = 0;
-    let buttonRow;
-    function addVisitWindowButton(button) {
-        if (buttonCount++ % 2 == 0) {
-            buttonRow = document.createElement('div');
-            addressWindow.appendChild(buttonRow);
+    let itemCount = 0;
+    let itemRow;
+    function addItem(item) {
+        if (itemCount++ % 2 == 0) {
+            itemRow = document.createElement('div');
+            addressWindow.appendChild(itemRow);
         }
-        buttonRow.appendChild(button);
+        itemRow.appendChild(item);
+        return itemRow;
     }
 
     function addOption(select, value) {
@@ -441,60 +442,85 @@ async function addAddMarkerButton(element, mapId) {
         select.appendChild(option);
     }
 
+    let typeLabel = document.createElement('label');
+    typeLabel.innerText = 'Type';
+    addItem(typeLabel);
+    let typeInput = document.createElement('select');
+    addOption(typeInput, 'Marker');
+    addOption(typeInput, 'Locality');
+    addItem(typeInput);
+
+    let titleLabel = document.createElement('label');
+    titleLabel.innerText = 'Name';
+    addItem(titleLabel);
+    let titleInput = document.createElement('input');
+    addItem(titleInput);
+
     let addressLabel = document.createElement('label');
     addressLabel.innerText = 'Address';
-    addVisitWindowButton(addressLabel);
+    addItem(addressLabel);
     let addressInput = document.createElement('input');
-    addVisitWindowButton(addressInput);
+    addItem(addressInput);
 
     let radiusLabel = document.createElement('label');
     radiusLabel.innerText = 'Radius (meters)';
-    addVisitWindowButton(radiusLabel);
+    addItem(radiusLabel);
     let radiusInput = document.createElement('input');
     radiusInput.value = '3219';
-    addVisitWindowButton(radiusInput);
+    let radiusRow = addItem(radiusInput);
 
     let colorLabel = document.createElement('label');
     colorLabel.innerText = 'Color';
-    addVisitWindowButton(colorLabel);
+    addItem(colorLabel);
     let colorInput = document.createElement('input');
     colorInput.value = '#D47BAC';
-    addVisitWindowButton(colorInput);
+    addItem(colorInput);
 
-    let titleLabel = document.createElement('label');
-    titleLabel.innerText = 'Title';
-    addVisitWindowButton(titleLabel);
-    let titleInput = document.createElement('input');
-    addVisitWindowButton(titleInput);
+    let markerTypeLabel = document.createElement('label');
+    markerTypeLabel.innerText = 'Type';
+    addItem(markerTypeLabel);
+    let markerTypeInput = document.createElement('select');
+    addOption(markerTypeInput, 'Library');
+    addOption(markerTypeInput, 'Question Mark');
+    let markerTypeRow = addItem(markerTypeInput);
 
-    let typeLabel = document.createElement('label');
-    typeLabel.innerText = 'Type';
-    addVisitWindowButton(typeLabel);
-    let typeInput = document.createElement('select');
-    addOption(typeInput, 'Library');
-    addOption(typeInput, 'Question Mark')
-    addVisitWindowButton(typeInput);
+    let visibilityHandler = () => {
+        radiusRow.style.display = typeInput.value === 'Marker' ? '' : 'none';
+        markerTypeRow.style.display = typeInput.value === 'Marker' ? '' : 'none';
+    };
+    visibilityHandler();
+
+    typeInput.addEventListener('change', visibilityHandler);
 
     let button = document.createElement('button');
-    button.textContent = 'Add Marker';
-    button.addEventListener('click', () => {
-        fetch('/wp-admin/admin-ajax.php?action=lp_place_marker' +
+    button.textContent = 'Submit';
+    button.addEventListener('click', async () => {
+        let type = typeInput.value;
+        const response = await fetch('/wp-admin/admin-ajax.php?action=lp_place_map_item' +
+            '&type=' + encodeURIComponent(type) +
             '&address=' + encodeURIComponent(addressInput.value) +
             '&radius=' + encodeURIComponent(radiusInput.value) +
-            '&radius_color=' + encodeURIComponent(colorInput.value) +
+            '&color=' + encodeURIComponent(colorInput.value) +
             '&name=' + encodeURIComponent(titleInput.value) +
-            '&type=' + encodeURIComponent(typeInput.value) +
-            '&map_id=' + mapId)
-            .then(req => req.json())
-            .then(json => {
-                for (const marker of json) {
-                    addMapMarker(element, marker);
-                }
-            });
+            '&markerType=' + encodeURIComponent(markerTypeLabel.value) +
+            '&map_id=' + mapId);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Error placing map item: ' + errorText);
+            alert(errorText);
+            return;
+        }
+        const json = await response.json();
         addressInput.value = '';
         titleInput.value = '';
+        for (const item of json) {
+            if (type === 'Locality')
+                highlightArea(element.map, 'locality', item);
+            else if (type === 'Marker')
+                addMapMarker(element, item);
+        }
     });
-    addVisitWindowButton(button);
+    addItem(button);
     button.disabled = true;
 
     function enableMarkerButton() {
@@ -587,7 +613,7 @@ async function addMapMarker(element, info) {
             content: info.name + '<br>' +
                 info.line_1 + ', ' + info.city + ', ' + info.state
         });
-
+2
         if (hasEditPrivileges) {
             marker.addListener('contextmenu', (e) => {
                 if (menuControl) {
@@ -616,6 +642,17 @@ async function addMapMarker(element, info) {
             });
         });
     }
+}
+
+function loadMapLocalities(element, mapId) {
+    fetch('/wp-admin/admin-ajax.php?action=lp_load_localities_json' +
+        '&map_id=' + encodeURIComponent(mapId))
+        .then(req => req.json())
+        .then(json => {
+            for (const locality of json) {
+                highlightArea(element.map, 'locality', locality);
+            }
+        });
 }
 
 async function placeImageMarker(map, image, address, label) {
@@ -965,7 +1002,7 @@ function startRoute(map, route) {
 
     let buttonCount = 0;
     let buttonRow;
-    function addVisitWindowButton(button) {
+    function addItem(button) {
         if (buttonCount++ % 2 == 0) {
             buttonRow = document.createElement('div');
             addressWindow.appendChild(buttonRow);
@@ -988,7 +1025,7 @@ function startRoute(map, route) {
                     drawVisits(map, visitInfo);
                 });
         });
-        addVisitWindowButton(button);
+        addItem(button);
     });
     map.controls[google.maps.ControlPosition.BOTTOM_CENTER].push(addressWindow);
 
@@ -1140,7 +1177,7 @@ function startRoute(map, route) {
         autoUpdateMap();
     });
 
-    addVisitWindowButton(recenterControl);
+    addItem(recenterControl);
     //map.controls[google.maps.ControlPosition.LEFT_CENTER].push(recenterControl);
 
     map.addListener('dragstart', () => {
