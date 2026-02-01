@@ -96,25 +96,25 @@ async function initMap(element, position, zoom, mapId, locality) {
 }
 
 async function highlightArea(map, type, locality) {
-    let featureLayer = map.getFeatureLayer("LOCALITY");
-    let request = {
-        textQuery: locality['name'],
-        fields: ["id", "location"],
-        includedType: type,
-    };
-    if (locality['latitude'] && locality['longitude']) {
-        request['locationBias'] = {'lat': locality['latitude'], 'lng': locality['longitude']};
+    if (!locality['placesResult']) {
+        let request = {
+            textQuery: locality['name'],
+            fields: ["id", "location"],
+            includedType: type,
+        };
+        if (locality['latitude'] && locality['longitude']) {
+            request['locationBias'] = {'lat': locality['latitude'], 'lng': locality['longitude']};
+        }
+        const { Place } = await google.maps.importLibrary("places");
+        const { places } = await Place.searchByText(request);
+        locality['placesResult'] = places;
     }
-    const { Place } = await google.maps.importLibrary("places");
-    const { places } = await Place.searchByText(request);
 
+    const places = locality['placesResult'];
     if (places.length) {
         const place = places[0];
-
+        let featureLayer = map.getFeatureLayer("LOCALITY");
         styleBoundary(place.id, featureLayer, locality['color']);
-        if (!request['locationBias']) {
-            map.setCenter(place.location);
-        }
     } else {
         console.warn("Locality query: No results");
     }
@@ -569,6 +569,7 @@ function initializeLocalityControls(element) {
         titleEl.textContent = (locality_index + 1) + '. ' + cur.name;
         updateLocalityButtons();
         element.map.setCenter({ lat: parseFloat(cur.latitude), lng: parseFloat(cur.longitude) });
+        highlightArea(element.map, 'locality', cur);
     }
 
     // Initialize title and map center if we have at least one locality
@@ -607,12 +608,8 @@ function loadMapLocalities(element, mapId) {
 
             // Store json in a variable and create an index for the current locality
             localities = json;
-            locality_index = 0;
-
-            // Highlight all localities on the map
-            for (const locality of localities) {
-                highlightArea(element.map, 'locality', locality);
-            }
+            if (localities.length > 0)
+                locality_index = 0;
 
             initializeLocalityControls(element);
         });
