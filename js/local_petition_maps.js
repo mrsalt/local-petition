@@ -86,12 +86,13 @@ async function initMap(element, position, zoom, mapId, locality) {
         });
         addSidebarRow(element, [fullscreenButton]);
 
+        /* we'll re-enable this checkbox once it does something.
         let checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         let label = document.createElement('label');
         label.textContent = 'Borders Overlap';
         map.lpcontrols = { bordersOverlap: checkbox };
-        addSidebarRow(element, [checkbox, label]);
+        addSidebarRow(element, [checkbox, label]);*/
     }
 }
 
