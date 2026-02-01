@@ -257,147 +257,6 @@ function drawSupporterGrid(squares, element, supporters, minSupporters) {
         addChartLegend(element.map, minPerSquare, minColor, maxPerSquare, maxColor);
 }
 
-var managerOptions;
-var routeInProgress = {};
-var routeData = { maxRouteID: 0, routes: [] };
-var visitData = { visits: [], byAddress: new Map() };
-
-async function addMapRoutes(element) {
-    const { Drawing } = await google.maps.importLibrary("drawing");
-    managerOptions = {
-        drawingMode: null,
-        drawingControl: false,
-        drawingControlOptions: {
-            position: google.maps.ControlPosition.TOP_CENTER,
-            drawingModes: [
-                google.maps.drawing.OverlayType.POLYGON,
-            ],
-        },
-    };
-    fetch('/wp-admin/admin-ajax.php?action=lp_get_map_routes')
-        .then(req => req.json())
-        .then(routeInfo => {
-            let centerString = localStorage.getItem(element.id + '-center');
-            if (centerString) {
-                console.log('restoring map location');
-                element.map.setCenter(JSON.parse(centerString));
-            }
-            let zoomString = localStorage.getItem(element.id + '-zoom');
-            if (zoomString) {
-                console.log('restoring map zoom');
-                element.map.setZoom(JSON.parse(zoomString));
-            }
-            if (routeInfo.is_editor) {
-                fetch('/wp-admin/admin-ajax.php?action=lp_get_users')
-                    .then(req => req.json())
-                    .then(userList => {
-                        routeData.userList = userList;
-                    })
-                    .then(() => {
-                        drawRoutes(element.map, routeInfo);
-                    })
-            }
-            else {
-                drawRoutes(element.map, routeInfo);
-            }
-        })
-        .then(() => {
-            element.map.addListener('center_changed', () => {
-                if (element.centerPersistHandler) clearTimeout(element.centerPersistHandler);
-                element.centerPersistHandler = setTimeout(() => {
-                    let centerString = JSON.stringify(element.map.getCenter());
-                    localStorage.setItem(element.id + '-center', centerString);
-                    delete element.centerPersistHandler;
-                }, 1000);
-            });
-            element.map.addListener('zoom_changed', () => {
-                let zoom = JSON.stringify(element.map.getZoom());
-                localStorage.setItem(element.id + '-zoom', zoom);
-                let newFontSize = getTextSizeForZoomLevel(element.map.getZoom(), 1.5);
-                //console.log('new font size for marker for zoom level ' + zoom + ': ' + newFontSize);
-                for (const route of routeData.routes) {
-                    route.mapNumber.then((marker) => { marker.content.style.fontSize = newFontSize })
-                }
-                newFontSize = getTextSizeForZoomLevel(element.map.getZoom(), 1.0);
-                for (const visit of visitData.visits) {
-                    visit.marker.then((marker) => { marker.content.style.fontSize = newFontSize })
-                }
-            });
-            const drawingManager = new google.maps.drawing.DrawingManager(managerOptions);
-            drawingManager.setMap(element.map);
-            element.drawingManager = drawingManager;
-
-            google.maps.event.addListener(drawingManager, 'polygoncomplete', function (polygon) {
-                if (routeInProgress.hasOwnProperty('okButton'))
-                    routeInProgress.okButton.disabled = false;
-                routeInProgress.polygon = polygon;
-                routeInProgress.path = JSON.stringify(polygon.getPath().getArray());
-                routeInProgress.mapNumber = placeNumber(routeData.maxRouteID + 1, element.map, findCenterOf(JSON.parse(routeInProgress.path)));
-            });
-        });
-
-    fetch('/wp-admin/admin-ajax.php?action=lp_get_visits')
-        .then(req => req.json())
-        .then(visitInfo => {
-            drawVisits(element.map, visitInfo);
-        });
-}
-
-function findCenterOf(path) {
-    let east, west, north, south;
-    for (const pos of path) {
-        if (east === undefined) {
-            east = pos.lng;
-            west = pos.lng;
-            north = pos.lat;
-            south = pos.lat;
-            continue;
-        }
-        if (pos.lng < west) west = pos.lng;
-        else if (pos.lng > east) east = pos.lng;
-        if (pos.lat < south) south = pos.lat;
-        else if (pos.lat > north) north = pos.lat;
-    }
-    return { lng: (east + west) / 2.0, lat: (north + south) / 2.0 };
-}
-
-function getTextSizeForZoomLevel(level, scale = 1.0) {
-    let size;
-    level = Math.round(level);
-    switch (level) {
-        case 20: size = 48; break;
-        case 19: size = 36; break;
-        case 18: size = 30; break;
-        case 17: size = 24; break;
-        case 16: size = 18; break;
-        case 15: size = 14; break;
-        case 14: size = 10; break;
-        case 13: size = 6; break;
-        default: size = 4; break;
-    }
-    return '' + Math.round(size * scale) + 'px';
-}
-
-async function placeNumber(number, map, position) {
-    const { AdvancedMarkerElement } = await google.maps.importLibrary("marker")
-    let el = document.createElement('div')
-    el.textContent = number;
-    el.style.fontSize = getTextSizeForZoomLevel(map.getZoom(), 1.5);
-    el.style.fontWeight = 'bold';
-    el.style.color = 'black';
-    let marker = new AdvancedMarkerElement({ content: el, gmpDraggable: true, map: map, position: position });
-    marker.addListener('dragend', () => {
-        if (routeInProgress.polygon) {
-            routeInProgress.numberPosition = JSON.stringify(marker.position);
-        }
-        else {
-            let url = '/wp-admin/admin-ajax.php?action=lp_update_route_number_position&id=' + number + '&position=' + encodeURIComponent(JSON.stringify(marker.position));
-            fetch(url);
-        }
-    });
-    return marker;
-}
-
 var menuControl;
 function showContextMenu(parent, e, buttons) {
     menuControl = document.createElement('div');
@@ -647,19 +506,6 @@ async function addMapMarker(element, info) {
     }
 }
 
-function loadMapLocalities(element, mapId) {
-    fetch('/wp-admin/admin-ajax.php?action=lp_load_localities_json' +
-        '&map_id=' + encodeURIComponent(mapId))
-        .then(req => req.json())
-        .then(json => {
-
-            for (const locality of json) {
-                highlightArea(element.map, 'locality', locality);
-            }
-            //addSidebarRow(element, [fullscreenButton]);
-        });
-}
-
 async function placeImageMarker(map, image, address, label) {
     const { Marker } = await google.maps.importLibrary("marker")
     let geocoder = new google.maps.Geocoder();
@@ -668,4 +514,75 @@ async function placeImageMarker(map, image, address, label) {
         let options = { 'icon': image, 'map': map, 'label': label, 'position': result.geometry.location };
         new Marker(options);
     }).catch(() => { });
+}
+
+function loadMapLocalities(element, mapId) {
+    fetch('/wp-admin/admin-ajax.php?action=lp_load_localities_json' +
+        '&map_id=' + encodeURIComponent(mapId))
+        .then(req => req.json())
+        .then(json => {
+
+            // Store json in a variable and create an index for the current locality
+            const localities = json;
+            let locality_index = 0;
+
+            // Highlight all localities on the map (keeps existing behaviour)
+            for (const locality of localities) {
+                highlightArea(element.map, 'locality', locality);
+            }
+
+            // Create a simple control with left arrow, title, right arrow
+            const controlDiv = document.createElement('div');
+            controlDiv.classList.add('lp-locality-control');
+
+            const leftBtn = document.createElement('button');
+            leftBtn.type = 'button';
+            leftBtn.classList.add('lp-locality-left');
+            leftBtn.textContent = '<';
+            leftBtn.disabled = true; // initially disabled
+
+            const titleEl = document.createElement('div');
+            titleEl.classList.add('lp-locality-title');
+            titleEl.style.display = 'inline-block';
+            titleEl.style.margin = '0 8px';
+
+            const rightBtn = document.createElement('button');
+            rightBtn.type = 'button';
+            rightBtn.classList.add('lp-locality-right');
+            rightBtn.textContent = '>';
+            rightBtn.disabled = localities.length <= 1;
+
+            function updateForIndex() {
+                const cur = localities[locality_index];
+                titleEl.textContent = cur.name;
+                leftBtn.disabled = locality_index === 0;
+                rightBtn.disabled = locality_index === localities.length - 1;
+                element.map.setCenter({ lat: parseFloat(cur.latitude), lng: parseFloat(cur.longitude) });
+            }
+
+            // Initialize title and map center if we have at least one locality
+            updateForIndex();
+
+            leftBtn.addEventListener('click', () => {
+                if (locality_index > 0) {
+                    locality_index -= 1;
+                    updateForIndex();
+                }
+            });
+
+            rightBtn.addEventListener('click', () => {
+                if (locality_index < localities.length - 1) {
+                    locality_index += 1;
+                    updateForIndex();
+                }
+            });
+
+            controlDiv.appendChild(leftBtn);
+            controlDiv.appendChild(titleEl);
+            controlDiv.appendChild(rightBtn);
+
+            // Add control to the map (top center)
+            //element.map.controls[google.maps.ControlPosition.TOP_CENTER].push(controlDiv);
+            addSidebarRow(element, [controlDiv]);
+        });
 }
