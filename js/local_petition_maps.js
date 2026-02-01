@@ -373,14 +373,20 @@ async function addAddItemButton(element, mapId) {
     button.textContent = 'Submit';
     button.addEventListener('click', async () => {
         let type = typeInput.value;
-        const response = await fetch('/wp-admin/admin-ajax.php?action=lp_place_map_item' +
+        let url = '/wp-admin/admin-ajax.php?action=lp_place_map_item' +
             '&type=' + encodeURIComponent(type) +
             '&address=' + encodeURIComponent(addressInput.value) +
-            '&radius=' + encodeURIComponent(radiusInput.value) +
             '&color=' + encodeURIComponent(colorInput.value) +
             '&name=' + encodeURIComponent(titleInput.value) +
-            '&markerType=' + encodeURIComponent(markerTypeLabel.value) +
-            '&map_id=' + mapId);
+            '&map_id=' + mapId;
+        if (type === 'Marker') {
+            url += '&markerType=' + encodeURIComponent(markerTypeLabel.value);
+            url += '&radius=' + encodeURIComponent(radiusInput.value);
+            if (locality_index !== null && locality_index !== undefined) {
+                url += '&locality_id=' + encodeURIComponent(localities[locality_index].id);
+            }
+        }
+        const response = await fetch(url);
         if (!response.ok) {
             const errorText = await response.text();
             console.error('Error placing map item: ' + errorText);
