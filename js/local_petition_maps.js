@@ -3,6 +3,11 @@
 let hasEditPrivileges = false;
 const searchParams = new URL(document.location.href).searchParams;
 
+let localities = [];
+let locality_index = undefined;
+let localityLeftButton = undefined;
+let localityRightButton = undefined;
+
 function addSidebarRow(element, items) {
     const interactiveContainer = element.closest('div.interactive-map-container');
     if (!interactiveContainer) return;
@@ -376,10 +381,15 @@ async function addAddItemButton(element, mapId) {
         addressInput.value = '';
         titleInput.value = '';
         for (const item of json) {
-            if (type === 'Locality')
+            if (type === 'Locality') {
                 highlightArea(element.map, 'locality', item);
-            else if (type === 'Marker')
+
+                localities.push(item);
+                initializeLocalityControls(element);
+                updateLocalityButtons();
+            } else if (type === 'Marker') {
                 addMapMarker(element, item);
+            }
         }
     });
     addItem(button);
@@ -516,6 +526,68 @@ async function placeImageMarker(map, image, address, label) {
     }).catch(() => { });
 }
 
+function updateLocalityButtons() {
+    localityLeftButton.disabled = locality_index === 0;
+    localityRightButton.disabled = locality_index === localities.length - 1;
+}
+
+function initializeLocalityControls(element) {
+    if (localityLeftButton !== undefined) return;
+    locality_index = localities.length > 0 ? 0 : null;
+
+    // Create a simple control with left arrow, title, right arrow
+    const controlDiv = document.createElement('div');
+    controlDiv.classList.add('lp-locality-control');
+
+    localityLeftButton = document.createElement('button');
+    localityLeftButton.type = 'button';
+    localityLeftButton.classList.add('lp-locality-left');
+    localityLeftButton.textContent = '<';
+
+    const titleEl = document.createElement('div');
+    titleEl.classList.add('lp-locality-title');
+    titleEl.style.display = 'inline-block';
+    titleEl.style.margin = '0 8px';
+
+    localityRightButton = document.createElement('button');
+    localityRightButton.type = 'button';
+    localityRightButton.classList.add('lp-locality-right');
+    localityRightButton.textContent = '>';
+
+    function updateForIndex() {
+        if (locality_index === null || localities.length === 0) return;
+        const cur = localities[locality_index];
+        titleEl.textContent = (locality_index + 1) + '. ' + cur.name;
+        updateLocalityButtons();
+        element.map.setCenter({ lat: parseFloat(cur.latitude), lng: parseFloat(cur.longitude) });
+    }
+
+    // Initialize title and map center if we have at least one locality
+    updateForIndex();
+
+    localityLeftButton.addEventListener('click', () => {
+        if (locality_index > 0) {
+            locality_index -= 1;
+            updateForIndex();
+        }
+    });
+
+    localityRightButton.addEventListener('click', () => {
+        if (locality_index < localities.length - 1) {
+            locality_index += 1;
+            updateForIndex();
+        }
+    });
+
+    controlDiv.appendChild(localityLeftButton);
+    controlDiv.appendChild(titleEl);
+    controlDiv.appendChild(localityRightButton);
+
+    // Add control to the map (top center)
+    //element.map.controls[google.maps.ControlPosition.TOP_CENTER].push(controlDiv);
+    addSidebarRow(element, [controlDiv]);
+}
+
 function loadMapLocalities(element, mapId) {
     fetch('/wp-admin/admin-ajax.php?action=lp_load_localities_json' +
         '&map_id=' + encodeURIComponent(mapId))
@@ -523,66 +595,14 @@ function loadMapLocalities(element, mapId) {
         .then(json => {
 
             // Store json in a variable and create an index for the current locality
-            const localities = json;
-            let locality_index = 0;
+            localities = json;
+            locality_index = 0;
 
-            // Highlight all localities on the map (keeps existing behaviour)
+            // Highlight all localities on the map
             for (const locality of localities) {
                 highlightArea(element.map, 'locality', locality);
             }
 
-            // Create a simple control with left arrow, title, right arrow
-            const controlDiv = document.createElement('div');
-            controlDiv.classList.add('lp-locality-control');
-
-            const leftBtn = document.createElement('button');
-            leftBtn.type = 'button';
-            leftBtn.classList.add('lp-locality-left');
-            leftBtn.textContent = '<';
-            leftBtn.disabled = true; // initially disabled
-
-            const titleEl = document.createElement('div');
-            titleEl.classList.add('lp-locality-title');
-            titleEl.style.display = 'inline-block';
-            titleEl.style.margin = '0 8px';
-
-            const rightBtn = document.createElement('button');
-            rightBtn.type = 'button';
-            rightBtn.classList.add('lp-locality-right');
-            rightBtn.textContent = '>';
-            rightBtn.disabled = localities.length <= 1;
-
-            function updateForIndex() {
-                const cur = localities[locality_index];
-                titleEl.textContent = cur.name;
-                leftBtn.disabled = locality_index === 0;
-                rightBtn.disabled = locality_index === localities.length - 1;
-                element.map.setCenter({ lat: parseFloat(cur.latitude), lng: parseFloat(cur.longitude) });
-            }
-
-            // Initialize title and map center if we have at least one locality
-            updateForIndex();
-
-            leftBtn.addEventListener('click', () => {
-                if (locality_index > 0) {
-                    locality_index -= 1;
-                    updateForIndex();
-                }
-            });
-
-            rightBtn.addEventListener('click', () => {
-                if (locality_index < localities.length - 1) {
-                    locality_index += 1;
-                    updateForIndex();
-                }
-            });
-
-            controlDiv.appendChild(leftBtn);
-            controlDiv.appendChild(titleEl);
-            controlDiv.appendChild(rightBtn);
-
-            // Add control to the map (top center)
-            //element.map.controls[google.maps.ControlPosition.TOP_CENTER].push(controlDiv);
-            addSidebarRow(element, [controlDiv]);
+            initializeLocalityControls(element);
         });
 }
