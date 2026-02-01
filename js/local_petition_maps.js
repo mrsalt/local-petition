@@ -8,17 +8,23 @@ let locality_index = undefined;
 let localityLeftButton = undefined;
 let localityRightButton = undefined;
 
-function addSidebarRow(element, items) {
+function addSidebarRow(element, items, addRow = true) {
     const interactiveContainer = element.closest('div.interactive-map-container');
     if (!interactiveContainer) return;
     let sideBar = interactiveContainer.querySelector('div.interactive-map-sidebar');
-    let row = document.createElement('div');
-    row.classList.add('sidebar-row');
-    for (const item of items) {
-        row.appendChild(item);
+    if (addRow) {
+        let row = document.createElement('div');
+        row.classList.add('sidebar-row');
+        for (const item of items) {
+            row.appendChild(item);
+        }
+        sideBar.appendChild(row);
+    } else {
+        for (const item of items) {
+            sideBar.appendChild(item);
+        }
     }
-    sideBar.appendChild(row);
-};
+}
 
 // position should be an object like this:
 // const position = { lat: -25.344, lng: 131.031 };
@@ -64,15 +70,18 @@ async function initMap(element, position, zoom, mapId, locality) {
         let fullscreenButton = document.createElement('button');
         fullscreenButton.textContent = 'Fullscreen';
         let fullscreenMode = false;
+        let sideBar = interactiveContainer.querySelector('div.interactive-map-sidebar');
         fullscreenButton.addEventListener('click', () => {
             fullscreenMode = !fullscreenMode;
             if (fullscreenMode) {
                 fullscreenButton.textContent = 'Exit Fullscreen';
                 interactiveContainer.requestFullscreen();
+                sideBar.classList.add('lp-map-sidebar-fullscreen');
             }
             else {
                 fullscreenButton.textContent = 'Fullscreen';
                 document.exitFullscreen();
+                sideBar.classList.remove('lp-map-sidebar-fullscreen');
             }
         });
         addSidebarRow(element, [fullscreenButton]);
@@ -585,6 +594,8 @@ function initializeLocalityControls(element) {
 
     // Add control to the map (top center)
     //element.map.controls[google.maps.ControlPosition.TOP_CENTER].push(controlDiv);
+    const separator = document.createElement('hr');
+    addSidebarRow(element, [separator], false);
     addSidebarRow(element, [controlDiv]);
 }
 
