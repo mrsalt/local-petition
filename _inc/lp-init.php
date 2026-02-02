@@ -2,7 +2,7 @@
 
 function lp_handle_init()
 {
-    if (!session_id()) {
+    if (!session_id() && !headers_sent()) {
         session_start();
     }
 }
