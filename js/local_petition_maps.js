@@ -7,6 +7,9 @@ let localities = [];
 let locality_index = undefined;
 let localityLeftButton = undefined;
 let localityRightButton = undefined;
+let currentHighlightType = undefined;
+let currentHighlightLocality = undefined;
+let allMarkers = [];
 
 function addSidebarRow(element, items, addRow = true) {
     const interactiveContainer = element.closest('div.interactive-map-container');
@@ -29,7 +32,8 @@ function addSidebarRow(element, items, addRow = true) {
 // position should be an object like this:
 // const position = { lat: -25.344, lng: 131.031 };
 // zoom should be a zoom level.  0 = whole earth, 4 = zoomed out very far.  15?
-async function initMap(element, position, zoom, mapId, locality) {
+// mapTypeId: google.maps.MapTypeId.SATELLITE
+async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
     const { Map } = await google.maps.importLibrary("maps");
 
     let mapOptions = {
@@ -41,7 +45,7 @@ async function initMap(element, position, zoom, mapId, locality) {
     if (position) {
         mapOptions['center'] = position;
     }
-    if (mapId) {
+    if (mapId && mapId !== 'null') {
         mapOptions['mapId'] = mapId;
     }
     else {
@@ -54,6 +58,9 @@ async function initMap(element, position, zoom, mapId, locality) {
             stylers: [{ visibility: 'off' }]  // Turn off bus, train stations etc.
         }];
     }
+    if (mapTypeId && mapTypeId !== 'null') {
+        mapOptions['mapTypeId'] = mapTypeId;
+    }
 
     //https://developers.google.com/maps/documentation/get-map-id
     let map = new Map(element, mapOptions);
@@ -62,6 +69,13 @@ async function initMap(element, position, zoom, mapId, locality) {
     if (locality) {
         highlightArea(map, 'locality', {'name': locality, 'latitude': position.lat, 'longitude': position.lng, 'color': 'rgb(196, 163, 16)'});
     }
+
+    google.maps.event.addListener(map, 'maptypeid_changed', function() {
+        // Re-apply style or re-add features if necessary
+        if (currentHighlightType !== undefined && currentHighlightLocality !== undefined) {
+            highlightArea(map, currentHighlightType, currentHighlightLocality);
+        }
+    });
 
     const interactiveContainer = element.closest('div.interactive-map-container');
     if (interactiveContainer) {
@@ -86,6 +100,43 @@ async function initMap(element, position, zoom, mapId, locality) {
         });
         addSidebarRow(element, [fullscreenButton]);
 
+        // Radius slider (miles) ------------------------------------------------
+        const radiusLabel = document.createElement('label');
+        radiusLabel.textContent = 'Radius (miles)';
+        const radiusInput = document.createElement('input');
+        radiusInput.type = 'range';
+        radiusInput.min = '1.0';
+        radiusInput.max = '3.0';
+        radiusInput.step = '0.5';
+        radiusInput.value = '2.0';
+        radiusInput.classList.add('lp-radius-slider');
+        const radiusValue = document.createElement('span');
+        radiusValue.classList.add('lp-radius-value');
+        radiusValue.textContent = radiusInput.value;
+
+        // Update function: converts miles to meters and applies to all markers with radiusControl
+        function applyRadiusMiles(miles) {
+            const meters = parseFloat(miles) * 1609.344; // 1 mile = 1609.344 meters
+            for (const entry of allMarkers) {
+                if (entry && entry.radiusControl) {
+                    try {
+                        entry.radiusControl.setRadius(meters);
+                        if (entry.info) entry.info.radius = meters;
+                    } catch (e) {
+                        console.warn('Failed to set radius on marker', e);
+                    }
+                }
+            }
+        }
+
+        radiusInput.addEventListener('input', (e) => {
+            const val = e.target.value;
+            radiusValue.textContent = val;
+            applyRadiusMiles(val);
+        });
+
+        addSidebarRow(element, [radiusLabel, radiusInput, radiusValue]);
+
         /* we'll re-enable this checkbox once it does something.
         let checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
@@ -97,6 +148,8 @@ async function initMap(element, position, zoom, mapId, locality) {
 }
 
 async function highlightArea(map, type, locality) {
+    currentHighlightType = type;
+    currentHighlightLocality = locality;
     if (!locality['placesResult']) {
         let request = {
             textQuery: locality['name'],
@@ -114,8 +167,16 @@ async function highlightArea(map, type, locality) {
     const places = locality['placesResult'];
     if (places.length) {
         const place = places[0];
-        let featureLayer = map.getFeatureLayer("LOCALITY");
-        styleBoundary(place.id, featureLayer, locality['color']);
+        let layerType;
+        if (type == 'locality')
+            layerType = 'LOCALITY';
+        else
+            console.error('highlightArea: type ' + type + ' not recognized');
+        let featureLayer = map.getFeatureLayer(layerType);
+        if (featureLayer.isAvailable)
+            styleBoundary(place.id, featureLayer, locality['color']);
+        else
+            console.warn("Feature layer " + layerType + " not available");
     } else {
         console.warn("Locality query: No results");
     }
@@ -123,7 +184,7 @@ async function highlightArea(map, type, locality) {
 
 function styleBoundary(placeid, featureLayer, color) {
   // Define a style of transparent purple with opaque stroke.
-  const styleFill = {
+  const style = {
     strokeColor: color,
     strokeOpacity: 0.9,
     strokeWeight: 2.0,
@@ -134,7 +195,7 @@ function styleBoundary(placeid, featureLayer, color) {
   // Define the feature style function.
   featureLayer.style = (params) => {
     if (params.feature.placeId == placeid) {
-      return styleFill;
+      return style;
     }
   };
 }
@@ -486,6 +547,8 @@ async function addMapMarker(element, info) {
         }, map: map, label: label, position: markerLocation
     };
     let marker = new Marker(options);
+    allMarkers.push({marker: marker, info: info});
+
     if (info.radius) {
         const radiusControl = new google.maps.Circle({
             strokeColor: info.radius_color,
@@ -498,6 +561,8 @@ async function addMapMarker(element, info) {
             radius: info.radius,
             clickable: false
         });
+        allMarkers[allMarkers.length - 1]['radiusControl'] = radiusControl;
+
         // radius unit is meters
         const infowindow = new google.maps.InfoWindow({
             content: info.name + '<br>' +

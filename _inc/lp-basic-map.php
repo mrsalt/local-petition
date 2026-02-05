@@ -9,9 +9,9 @@ function lp_basic_map($atts = [], $content = null)
     if (!set_campaign($atts['campaign'], $output)) {
         return $output;
     }
-    if (!array_key_exists('google-map-id', $atts)) {
-        return '<p>Required attribute missing: google-map-id</p>';
-    }
+    //if (!array_key_exists('google-map-id', $atts)) {
+    //    return '<p>Required attribute missing: google-map-id</p>';
+    //}
     global $basic_map_id;
     $basic_map_id = 'basic-map';
     $extra_script = '';
@@ -28,9 +28,10 @@ function lp_basic_map($atts = [], $content = null)
         }
     }
 
-    $googleMapId = $atts['google-map-id'];
+    $googleMapId = array_key_exists('google-map-id', $atts) ? $atts['google-map-id'] : null;
     $locality = array_key_exists('locality', $atts) ? $atts['locality'] : null;
-    return lp_create_map_element($basic_map_id, 'campaign-map', true, $locality, $atts['lat'], $atts['lng'], $atts['zoom'], $googleMapId, $extra_script, $interactive);
+    $mapTypeId = array_key_exists('maptypeid', $atts) ? $atts['maptypeid'] : null;
+    return lp_create_map_element($basic_map_id, 'campaign-map', true, $locality, $atts['lat'], $atts['lng'], $atts['zoom'], $googleMapId, $mapTypeId, $extra_script, $interactive);
 }
 
 function lp_load_markers_json_handler($id = null) {
