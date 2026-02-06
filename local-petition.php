@@ -22,7 +22,7 @@
  * License URI:       https://www.gnu.org/licenses/gpl-3.0.html
  * Update URI:        https://github.com/mrsalt/local-petition
  */
-define('LOCAL_PETITION_VERSION', '1.0.1');
+define('LOCAL_PETITION_VERSION', '1.0.2');
 
 // True if we are running in a production environment
 define('LP_PRODUCTION', get_cfg_var('environment') === 'production');

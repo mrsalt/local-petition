@@ -10,6 +10,7 @@ let localityRightButton = undefined;
 let currentHighlightType = undefined;
 let currentHighlightLocality = undefined;
 let allMarkers = [];
+let markersByLocality = {};
 
 function addSidebarRow(element, items, addRow = true) {
     const interactiveContainer = element.closest('div.interactive-map-container');
@@ -144,6 +145,34 @@ async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
         label.textContent = 'Borders Overlap';
         map.lpcontrols = { bordersOverlap: checkbox };
         addSidebarRow(element, [checkbox, label]);*/
+    }
+}
+
+function updateMarkerListForLocality(localityId, markerListEl = undefined) {
+    if (!markerListEl) {
+        markerListEl = document.querySelector('.lp-locality-marker-list');
+        if (!markerListEl) return;
+    }
+    // Populate the marker list for the current locality using markersByLocality
+    // Clear existing list
+    markerListEl.innerHTML = '';
+    if (markersByLocality[localityId]) {
+        const markers = markersByLocality[localityId];
+        for (const m of markers) {
+            // kinda weird to check this here, but the marker's radius color is currently
+            // the only way we have to determine whether the marker is a 'primary' marker
+            // of the city.  We may want to add 'includeInList' or something in the future.
+            // Another option would be to set locality to null for the other items that
+            // share the same locality id.
+            if ("#D47BAC" === m.info.radius_color) {
+                addToMarkerList(m.info.name, markerListEl);
+            }
+        }
+    } else {
+        // Optionally show empty state
+        const li = document.createElement('li');
+        li.textContent = 'None';
+        markerListEl.appendChild(li);
     }
 }
 
@@ -462,7 +491,6 @@ async function addAddItemButton(element, mapId) {
         for (const item of json) {
             if (type === 'Locality') {
                 highlightArea(element.map, 'locality', item);
-
                 localities.push(item);
                 initializeLocalityControls(element);
                 updateLocalityButtons();
@@ -509,6 +537,9 @@ function loadMapMarkers(element, mapId) {
         .then(json => {
             for (const marker of json)
                 addMapMarker(element, marker);
+            if (locality_index !== undefined && locality_index !== null) {
+                updateMarkerListForLocality(localities[locality_index].id);
+            }
         });
 }
 
@@ -547,7 +578,15 @@ async function addMapMarker(element, info) {
         }, map: map, label: label, position: markerLocation
     };
     let marker = new Marker(options);
-    allMarkers.push({marker: marker, info: info});
+    let markerEntry = { marker: marker, info: info };
+    allMarkers.push(markerEntry);
+
+    if (info.locality_id) {
+        if (!markersByLocality[info.locality_id]) {
+            markersByLocality[info.locality_id] = [];
+        }
+        markersByLocality[info.locality_id].push(markerEntry);
+    }
 
     if (info.radius) {
         const radiusControl = new google.maps.Circle({
@@ -614,6 +653,19 @@ function updateLocalityButtons() {
     localityRightButton.disabled = locality_index === localities.length - 1;
 }
 
+function addToMarkerList(markerName, markerListEl = undefined) {
+    if (!markerListEl) {
+        markerListEl = document.querySelector('.lp-locality-marker-list');
+        if (!markerListEl) return;
+    }
+    if (markerListEl.querySelector('li') && markerListEl.querySelector('li').textContent === 'None') {
+        markerListEl.innerHTML = '';
+    }
+    const li = document.createElement('li');
+    li.textContent = markerName;
+    markerListEl.appendChild(li);
+}
+
 function initializeLocalityControls(element) {
     if (localityLeftButton !== undefined) return;
     locality_index = localities.length > 0 ? 0 : null;
@@ -629,8 +681,9 @@ function initializeLocalityControls(element) {
 
     const titleEl = document.createElement('div');
     titleEl.classList.add('lp-locality-title');
-    titleEl.style.display = 'inline-block';
-    titleEl.style.margin = '0 8px';
+    // Container to show markers that belong to the current locality
+    const markerListEl = document.createElement('ol');
+    markerListEl.classList.add('lp-locality-marker-list');
 
     localityRightButton = document.createElement('button');
     localityRightButton.type = 'button';
@@ -644,6 +697,7 @@ function initializeLocalityControls(element) {
         updateLocalityButtons();
         element.map.setCenter({ lat: parseFloat(cur.latitude), lng: parseFloat(cur.longitude) });
         highlightArea(element.map, 'locality', cur);
+        updateMarkerListForLocality(cur.id, markerListEl);
     }
 
     // Initialize title and map center if we have at least one locality
@@ -672,6 +726,9 @@ function initializeLocalityControls(element) {
     const separator = document.createElement('hr');
     addSidebarRow(element, [separator], false);
     addSidebarRow(element, [controlDiv]);
+
+    // Add the marker list below the controls
+    addSidebarRow(element, [markerListEl]);
 }
 
 function loadMapLocalities(element, mapId) {

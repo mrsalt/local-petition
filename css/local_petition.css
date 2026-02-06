@@ -268,7 +268,7 @@ div.lp-map-sidebar-fullscreen {
 }
 
 div.interactive-map-sidebar > * {
-    padding: 3px 20px;
+    padding: 3px 15px;
 }
 
 div.interactive-map-sidebar > hr {
@@ -281,3 +281,9 @@ button.lp-locality-right {
     padding-right: 10px;
 }
 
+div.lp-locality-control > .lp-locality-title {
+    max-width: 135px;
+    text-wrap-mode: nowrap;
+    display: inline-block;
+    margin: 0 8px;
+}
