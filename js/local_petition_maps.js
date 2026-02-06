@@ -535,11 +535,21 @@ function loadMapMarkers(element, mapId) {
         '&map_id=' + encodeURIComponent(mapId))
         .then(req => req.json())
         .then(json => {
-            for (const marker of json)
-                addMapMarker(element, marker);
+            // Ensure we wait for all async addMapMarker() calls to finish
+            // before updating the marker list for the current locality.
+            const promises = [];
+            for (const marker of json) {
+                promises.push(addMapMarker(element, marker));
+            }
+            return Promise.all(promises);
+        })
+        .then(() => {
             if (locality_index !== undefined && locality_index !== null) {
                 updateMarkerListForLocality(localities[locality_index].id);
             }
+        })
+        .catch(err => {
+            console.error('Error loading markers:', err);
         });
 }
 
@@ -607,7 +617,6 @@ async function addMapMarker(element, info) {
             content: info.name + '<br>' +
                 info.line_1 + ', ' + info.city + ', ' + info.state
         });
-2
         if (hasEditPrivileges) {
             marker.addListener('contextmenu', (e) => {
                 if (menuControl) {
