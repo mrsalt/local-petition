@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.52';
+$lp_db_version = '1.53';
 
 function lp_db_install()
 {
@@ -74,7 +74,7 @@ function lp_db_install()
 		email varchar(50),
 		email_status ENUM('Unknown','Valid','Full','Invalid','Unsubscribed') NOT NULL DEFAULT 'Unknown',
 		phone varchar(20),
-		status ENUM ('Unreviewed','Approved','Quarantined') NOT NULL DEFAULT 'Unreviewed',
+		status ENUM ('Unreviewed','Approved','Quarantined','Duplicate') NOT NULL DEFAULT 'Unreviewed',
 		approved_id mediumint(9) NULL,
 		PRIMARY KEY  (id)
 	) $charset_collate;";

@@ -128,6 +128,7 @@ function lp_review_signers()
             '<option>Unreviewed</option>' .
             '<option>Approved</option>' .
             '<option>Quarantined</option>' .
+            '<option>Duplicate</option>' .
             '</select>';
     }
     echo ' change email to: <select name="new_email_status">' .
