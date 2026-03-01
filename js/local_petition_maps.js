@@ -106,7 +106,7 @@ async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
         radiusLabel.textContent = 'Radius (miles)';
         const radiusInput = document.createElement('input');
         radiusInput.type = 'range';
-        radiusInput.min = '1.0';
+        radiusInput.min = '0.0';
         radiusInput.max = '3.0';
         radiusInput.step = '0.5';
         radiusInput.value = '2.0';
