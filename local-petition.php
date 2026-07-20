@@ -53,6 +53,7 @@ add_action('plugins_loaded', 'lp_db_install');
 
 // Register filters
 require_once('_inc/lp-menu-items.php');
+require_once('_inc/lp-comment-spam.php');
 add_action( 'admin_bar_menu', 'lp_admin_bar_menu', 500 );
 add_action( 'admin_menu', 'lp_admin_menu' );
 
