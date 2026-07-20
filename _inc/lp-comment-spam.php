@@ -32,6 +32,10 @@ function lp_is_likely_spam_comment($comment)
         return true;
     }
 
+    if (strlen($normalized_text) < 10) {
+        return true;
+    }
+
     return false;
 }
 
@@ -87,7 +91,7 @@ function lp_get_pending_likely_spam_comments()
         'status' => 'hold',
         'orderby' => 'comment_date_gmt',
         'order' => 'DESC',
-        'number' => -1,
+        'number' => 0,
     ]);
 
     return lp_group_likely_spam_comments($comments);
