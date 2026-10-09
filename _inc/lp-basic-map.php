@@ -28,6 +28,11 @@ function lp_basic_map($atts = [], $content = null)
         }
     }
 
+    if (!empty($atts['click-url'])) {
+        $click_url = wp_json_encode(esc_url_raw($atts['click-url']));
+        $extra_script .= ".then(() => { addMapClickNavigation(document.getElementById('$basic_map_id'), $click_url) })\n";
+    }
+
     $googleMapId = array_key_exists('google-map-id', $atts) ? $atts['google-map-id'] : null;
     $locality = array_key_exists('locality', $atts) ? $atts['locality'] : null;
     $mapTypeId = array_key_exists('maptypeid', $atts) ? $atts['maptypeid'] : null;

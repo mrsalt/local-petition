@@ -41,6 +41,12 @@ function addSidebarRow(element, items, addRow = true) {
 // const position = { lat: -25.344, lng: 131.031 };
 // zoom should be a zoom level.  0 = whole earth, 4 = zoomed out very far.  15?
 // mapTypeId: google.maps.MapTypeId.SATELLITE
+function addMapClickNavigation(element, url) {
+    google.maps.event.addListener(element.map, 'click', () => {
+        window.location.href = url;
+    });
+}
+
 async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
     const { Map } = await google.maps.importLibrary("maps");
 
