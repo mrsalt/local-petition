@@ -160,7 +160,7 @@ async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
         censusCheckbox.type = 'checkbox';
         censusCheckbox.id = 'lp-show-census-' + Math.random().toString(36).slice(2);
         const censusCheckboxLabel = document.createElement('label');
-        censusCheckboxLabel.textContent = 'Show census data';
+        censusCheckboxLabel.textContent = 'Load census data';
         censusCheckboxLabel.htmlFor = censusCheckbox.id;
         addSidebarRow(element, [censusCheckbox, censusCheckboxLabel]);
 
@@ -269,7 +269,7 @@ function formatCensusValue(entry) {
 }
 
 // Estimates the census value inside each circle/polygon, or clears the
-// estimates when "Show census data" is unchecked.
+// estimates when "Load census data" is unchecked.
 async function updateCensus(map) {
     const controls = map.lpcontrols;
     if (!controls || !controls.showCensus) return;
@@ -407,6 +407,7 @@ function updateMarkerListForLocality(localityId, markerListEl = undefined) {
     // Populate the marker list for the current locality using markersByLocality
     // Clear existing list
     markerListEl.innerHTML = '';
+    const listed = new Set();
     // Proposed libraries aren't tied to a locality; they're listed under the
     // locality whose center is closest.
     const proposed = allMarkers.filter(e => e.info.temporary && !e.deleted &&
@@ -421,10 +422,12 @@ function updateMarkerListForLocality(localityId, markerListEl = undefined) {
             // share the same locality id.
             if ("#D47BAC" === m.info.radius_color) {
                 addToMarkerList(m.info.name, markerListEl, formatCensusValue(m));
+                listed.add(m);
             }
         }
         for (const m of proposed) {
             addToMarkerList((m.info.name || 'Unnamed library') + ' (proposed)', markerListEl, formatCensusValue(m));
+            listed.add(m);
         }
     } else {
         // Optionally show empty state
@@ -432,6 +435,26 @@ function updateMarkerListForLocality(localityId, markerListEl = undefined) {
         li.textContent = 'None';
         markerListEl.appendChild(li);
     }
+    updateOtherMarkerList(listed);
+}
+
+// Lists every library on the map that isn't in the locality list above, so
+// each library with a census value is visible somewhere.
+function updateOtherMarkerList(listed) {
+    const otherListEl = document.querySelector('.lp-other-marker-list');
+    if (!otherListEl) return;
+    otherListEl.innerHTML = '';
+    let count = 0;
+    for (const m of allMarkers) {
+        if (!m.radiusControl || m.deleted || listed.has(m)) continue;
+        const name = (m.info.name || 'Unnamed library') + (m.info.temporary ? ' (proposed)' : '');
+        addToMarkerList(name, otherListEl, formatCensusValue(m));
+        count++;
+    }
+    // hide the heading and list when empty
+    otherListEl.hidden = count === 0;
+    const heading = document.querySelector('.lp-other-marker-heading');
+    if (heading) heading.hidden = count === 0;
 }
 
 async function highlightArea(map, type, locality) {
@@ -1046,6 +1069,18 @@ function initializeLocalityControls(element) {
 
     // Add the marker list below the controls
     addSidebarRow(element, [markerListEl]);
+
+    // Libraries that aren't in the list above
+    const otherHeading = document.createElement('div');
+    otherHeading.classList.add('lp-other-marker-heading');
+    otherHeading.textContent = 'Other libraries';
+    otherHeading.hidden = true;
+    const otherListEl = document.createElement('ol');
+    otherListEl.classList.add('lp-other-marker-list');
+    otherListEl.hidden = true;
+    addSidebarRow(element, [otherHeading, otherListEl]);
+    // the lists weren't in the page yet when updateForIndex() first ran
+    refreshCurrentMarkerList();
 
     addSidebarRow(element, [document.createElement('hr')], false);
 
