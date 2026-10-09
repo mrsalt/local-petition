@@ -257,7 +257,7 @@ div.interactive-map {
 }
 
 div.interactive-map-sidebar {
-    width: 250px;
+    width: 300px;
     border-left: 1px solid darkgrey;
     padding-top: 15px;
     /* match the map's height (flex stretch) and scroll when the content is taller */
