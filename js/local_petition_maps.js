@@ -42,9 +42,18 @@ function addSidebarRow(element, items, addRow = true) {
 // zoom should be a zoom level.  0 = whole earth, 4 = zoomed out very far.  15?
 // mapTypeId: google.maps.MapTypeId.SATELLITE
 function addMapClickNavigation(element, url) {
-    google.maps.event.addListener(element.map, 'click', () => {
+    const map = element.map;
+    // Clicks inside a highlighted locality go to its feature layer rather than
+    // the map, so highlightArea forwards them to map.lpClickHandler.
+    map.lpClickHandler = () => {
         window.location.href = url;
-    });
+    };
+    map.addListener('click', (e) => map.lpClickHandler(e.latLng));
+    // highlightArea may already have run before the handler existed.
+    const featureLayer = map.getFeatureLayer('LOCALITY');
+    if (featureLayer.isAvailable && !featureLayer.lpClickListener) {
+        featureLayer.lpClickListener = featureLayer.addListener('click', (e) => map.lpClickHandler(e.latLng));
+    }
 }
 
 async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
