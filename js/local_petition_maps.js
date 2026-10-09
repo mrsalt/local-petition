@@ -11,6 +11,10 @@ let currentHighlightType = undefined;
 let currentHighlightLocality = undefined;
 let allMarkers = [];
 let markersByLocality = {};
+const DEFAULT_RADIUS_MILES = 2.0;
+let currentRadiusMeters = DEFAULT_RADIUS_MILES * 1609.344;
+const PROPOSED_LIBRARY_COLOR = '#3B82F6';
+const PROPOSED_LIBRARIES_PARAM = 'libs';
 
 function addSidebarRow(element, items, addRow = true) {
     const interactiveContainer = element.closest('div.interactive-map-container');
@@ -109,7 +113,7 @@ async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
         radiusInput.min = '0.0';
         radiusInput.max = '3.0';
         radiusInput.step = '0.5';
-        radiusInput.value = '2.0';
+        radiusInput.value = String(DEFAULT_RADIUS_MILES);
         radiusInput.classList.add('lp-radius-slider');
         const radiusValue = document.createElement('span');
         radiusValue.classList.add('lp-radius-value');
@@ -118,6 +122,7 @@ async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
         // Update function: converts miles to meters and applies to all markers with radiusControl
         function applyRadiusMiles(miles) {
             const meters = parseFloat(miles) * 1609.344; // 1 mile = 1609.344 meters
+            currentRadiusMeters = meters;
             for (const entry of allMarkers) {
                 if (entry && entry.radiusControl) {
                     try {
@@ -149,6 +154,15 @@ async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
         map.lpcontrols = { bordersOverlap: checkbox };
         checkbox.addEventListener('change', () => updateBorders(map));
         addSidebarRow(element, [checkbox, label]);
+
+        // Clicking the map proposes a new library at that spot.
+        map.addListener('click', (e) => {
+            if (menuControl) {
+                hideContextMenu();
+                return;
+            }
+            addProposedLibrary(element, e.latLng.lat(), e.latLng.lng());
+        });
     }
 }
 
@@ -188,6 +202,57 @@ function updateBorders(map) {
             clickable: false
         });
     });
+}
+
+function roundCoordinate(value) {
+    return Math.round(value * 1e5) / 1e5;
+}
+
+// Proposed libraries are never saved to the database.  Instead their positions
+// are kept in the page URL (?libs=lat,lng~lat,lng) so a plan can be shared.
+function updateUrlWithProposedLibraries() {
+    const points = allMarkers
+        .filter(e => e.info.temporary && !e.deleted)
+        .map(e => roundCoordinate(e.info.latitude) + ',' + roundCoordinate(e.info.longitude));
+    const url = new URL(document.location.href);
+    url.searchParams.delete(PROPOSED_LIBRARIES_PARAM);
+    if (points.length) {
+        url.search += (url.search ? '&' : '?') + PROPOSED_LIBRARIES_PARAM + '=' + points.join('~');
+    }
+    try {
+        history.replaceState(null, '', url);
+    } catch (e) {
+        console.warn('Unable to update URL', e);
+    }
+}
+
+async function addProposedLibrary(element, lat, lng, updateUrl = true) {
+    const entry = await addMapMarker(element, {
+        temporary: true,
+        icon: 'Library',
+        latitude: lat,
+        longitude: lng,
+        radius: currentRadiusMeters,
+        radius_color: PROPOSED_LIBRARY_COLOR
+    });
+    if (updateUrl) {
+        updateUrlWithProposedLibraries();
+        updateBorders(element.map);
+    }
+    return entry;
+}
+
+function loadProposedLibraries(element) {
+    const param = new URL(document.location.href).searchParams.get(PROPOSED_LIBRARIES_PARAM);
+    if (!param) return Promise.resolve();
+    const promises = [];
+    for (const point of param.split('~')) {
+        const [lat, lng] = point.split(',').map(parseFloat);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            promises.push(addProposedLibrary(element, lat, lng, false));
+        }
+    }
+    return Promise.all(promises).then(() => updateBorders(element.map));
 }
 
 function updateMarkerListForLocality(localityId, markerListEl = undefined) {
@@ -586,6 +651,11 @@ function loadMapMarkers(element, mapId) {
             return Promise.all(promises);
         })
         .then(() => {
+            if (element.closest('div.interactive-map-container')) {
+                return loadProposedLibraries(element);
+            }
+        })
+        .then(() => {
             if (locality_index !== undefined && locality_index !== null) {
                 updateMarkerListForLocality(localities[locality_index].id);
             }
@@ -629,6 +699,9 @@ async function addMapMarker(element, info) {
             labelOrigin: { 'x': 20, 'y': 50 }
         }, map: map, label: label, position: markerLocation
     };
+    if (info.temporary) {
+        options.draggable = true;
+    }
     let marker = new Marker(options);
     let markerEntry = { marker: marker, info: info };
     allMarkers.push(markerEntry);
@@ -640,7 +713,7 @@ async function addMapMarker(element, info) {
         markersByLocality[info.locality_id].push(markerEntry);
     }
 
-    if (info.radius) {
+    if (info.radius || info.temporary) {
         const radiusControl = new google.maps.Circle({
             strokeColor: info.radius_color,
             strokeOpacity: 0.8,
@@ -656,10 +729,27 @@ async function addMapMarker(element, info) {
 
         // radius unit is meters
         const infowindow = new google.maps.InfoWindow({
-            content: info.name + '<br>' +
+            content: info.temporary ?
+                'Proposed library<br>Drag to move, right-click to remove' :
+                info.name + '<br>' +
                 info.line_1 + ', ' + info.city + ', ' + info.state
         });
-        if (hasEditPrivileges) {
+        if (info.temporary) {
+            marker.addListener('drag', (e) => {
+                info.latitude = e.latLng.lat();
+                info.longitude = e.latLng.lng();
+                radiusControl.setCenter(e.latLng);
+                updateBorders(map);
+            });
+            marker.addListener('dragend', () => updateUrlWithProposedLibraries());
+            marker.addListener('contextmenu', () => {
+                marker.setMap(null);
+                radiusControl.setMap(null);
+                markerEntry.deleted = true;
+                updateUrlWithProposedLibraries();
+                updateBorders(map);
+            });
+        } else if (hasEditPrivileges) {
             marker.addListener('contextmenu', (e) => {
                 if (menuControl) {
                     hideContextMenu();
@@ -689,6 +779,7 @@ async function addMapMarker(element, info) {
             });
         });
     }
+    return markerEntry;
 }
 
 async function placeImageMarker(map, image, address, label) {
