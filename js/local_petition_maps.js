@@ -1125,6 +1125,7 @@ function initializeLocalityControls(element) {
     let tipContainer = document.createElement('div');
     tipContainer.classList.add('lp-locality-tip');
     tipContainer.innerHTML = '<div>Tips: <ol>'+
+    '<li>Click on the map to add a new location; right click to remove that location.</li>'+
     '<li>Click on the Satellite button to understand the geography and residential areas of the city better.</li>'+
     '<li>Use the arrows above to switch between cities.</li></ol></div>';
     addSidebarRow(element, [tipContainer]);
