@@ -168,7 +168,9 @@ async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
                 hideContextMenu();
                 return;
             }
-            addProposedLibrary(element, latLng.lat(), latLng.lng());
+            const name = window.prompt('Name for the new library:');
+            if (name === null) return; // cancelled
+            addProposedLibrary(element, latLng.lat(), latLng.lng(), name);
         };
         map.addListener('click', (e) => map.lpClickHandler(e.latLng));
     }
@@ -217,11 +219,12 @@ function roundCoordinate(value) {
 }
 
 // Proposed libraries are never saved to the database.  Instead their positions
-// are kept in the page URL (?libs=lat,lng~lat,lng) so a plan can be shared.
+// are kept in the page URL (?libs=lat,lng,name~lat,lng,name) so a plan can be shared.
 function updateUrlWithProposedLibraries() {
     const points = allMarkers
         .filter(e => e.info.temporary && !e.deleted)
-        .map(e => roundCoordinate(e.info.latitude) + ',' + roundCoordinate(e.info.longitude));
+        .map(e => roundCoordinate(e.info.latitude) + ',' + roundCoordinate(e.info.longitude) +
+            (e.info.name ? ',' + encodeURIComponent(e.info.name) : ''));
     const url = new URL(document.location.href);
     url.searchParams.delete(PROPOSED_LIBRARIES_PARAM);
     if (points.length) {
@@ -234,9 +237,12 @@ function updateUrlWithProposedLibraries() {
     }
 }
 
-async function addProposedLibrary(element, lat, lng, updateUrl = true) {
+async function addProposedLibrary(element, lat, lng, name = '', updateUrl = true) {
+    // '~' separates libraries in the URL, so it can't appear in a name.
+    name = name.trim().replace(/~/g, '-');
     const entry = await addMapMarker(element, {
         temporary: true,
+        name: name,
         icon: 'Library',
         latitude: lat,
         longitude: lng,
@@ -255,9 +261,12 @@ function loadProposedLibraries(element) {
     if (!param) return Promise.resolve();
     const promises = [];
     for (const point of param.split('~')) {
-        const [lat, lng] = point.split(',').map(parseFloat);
+        const parts = point.split(',');
+        const lat = parseFloat(parts[0]);
+        const lng = parseFloat(parts[1]);
+        const name = parts.slice(2).join(',');
         if (Number.isFinite(lat) && Number.isFinite(lng)) {
-            promises.push(addProposedLibrary(element, lat, lng, false));
+            promises.push(addProposedLibrary(element, lat, lng, name, false));
         }
     }
     return Promise.all(promises).then(() => updateBorders(element.map));
@@ -741,6 +750,7 @@ async function addMapMarker(element, info) {
         // radius unit is meters
         const infowindow = new google.maps.InfoWindow({
             content: info.temporary ?
+                (info.name ? info.name + '<br>' : '') +
                 'Proposed library<br>Drag to move, right-click to remove' :
                 info.name + '<br>' +
                 info.line_1 + ', ' + info.city + ', ' + info.state
