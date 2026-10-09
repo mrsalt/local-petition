@@ -21,8 +21,11 @@ function sanitize_address($address)
     }
 
     $result = $json->results[0];
-    if (!empty($result->partial_match)) {
-        return array('Error' => 'Address could not be verified exactly.  Please check it and try again.', 'params' => $address);
+    // Google flags a result as a partial match for harmless changes (e.g. dropping "S" from
+    // "S Countess Way"), so instead require that it resolved to an actual street address.
+    $is_street_address = array_intersect(array('street_address', 'premise', 'subpremise'), $result->types);
+    if (!$is_street_address || $result->geometry->location_type == 'GEOMETRIC_CENTER') {
+        return array('Error' => 'Address could not be verified as a street address.  Please check it and try again.', 'params' => $address);
     }
 
     $components = array();
