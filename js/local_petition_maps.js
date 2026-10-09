@@ -15,6 +15,9 @@ const DEFAULT_RADIUS_MILES = 2.0;
 let currentRadiusMeters = DEFAULT_RADIUS_MILES * 1609.344;
 const PROPOSED_LIBRARY_COLOR = '#3B82F6';
 const PROPOSED_LIBRARIES_PARAM = 'libs';
+// The city the "residents only" census option counts.  `name` is the city's
+// Census base name (see TIGERweb "Incorporated Places") and `state` its FIPS code.
+const CENSUS_CITY = { label: 'Boise', name: 'Boise City', state: '16' };
 
 function addSidebarRow(element, items, addRow = true) {
     const interactiveContainer = element.closest('div.interactive-map-container');
@@ -149,7 +152,7 @@ async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
         checkbox.checked = true;
         checkbox.id = 'lp-borders-overlap-' + Math.random().toString(36).slice(2);
         let label = document.createElement('label');
-        label.textContent = 'Borders Overlap';
+        label.textContent = 'Borders overlap';
         label.htmlFor = checkbox.id;
         map.lpcontrols = { bordersOverlap: checkbox };
         checkbox.addEventListener('change', () => updateBorders(map));
@@ -172,18 +175,34 @@ async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
             censusDataset.appendChild(option);
         }
         censusDataset.style.display = 'none';
+        const cityCheckbox = document.createElement('input');
+        cityCheckbox.type = 'checkbox';
+        cityCheckbox.id = 'lp-census-city-' + Math.random().toString(36).slice(2);
+        const cityLabel = document.createElement('label');
+        cityLabel.textContent = CENSUS_CITY.label + ' residents only';
+        cityLabel.htmlFor = cityCheckbox.id;
+        const cityOption = document.createElement('div');
+        cityOption.appendChild(cityCheckbox);
+        cityOption.appendChild(cityLabel);
+        cityOption.style.display = 'none';
         const censusStatus = document.createElement('div');
         censusStatus.classList.add('lp-census-status');
         censusStatus.style.display = 'none';
-        addSidebarRow(element, [censusDataset, censusStatus]);
+        addSidebarRow(element, [censusDataset, cityOption, censusStatus]);
 
         Object.assign(map.lpcontrols, {
             showCensus: censusCheckbox,
             censusDataset: censusDataset,
+            censusCity: cityCheckbox,
+            censusCityOption: cityOption,
             censusStatus: censusStatus,
             censusLabel: censusDataset.selectedOptions[0].textContent
         });
         censusCheckbox.addEventListener('change', () => updateCensus(map));
+        cityCheckbox.addEventListener('change', () => {
+            for (const entry of allMarkers) entry.censusValue = undefined;
+            updateCensus(map);
+        });
         censusDataset.addEventListener('change', () => {
             for (const entry of allMarkers) entry.censusValue = undefined;
             updateCensus(map);
@@ -277,6 +296,8 @@ async function updateCensus(map) {
     const status = controls.censusStatus;
     const show = controls.showCensus.checked;
     controls.censusDataset.style.display = show ? '' : 'none';
+    controls.censusCityOption.style.display = show ? '' : 'none';
+    const cityOnly = controls.censusCity.checked;
     status.style.display = show ? '' : 'none';
 
     const entries = show ? allMarkers.filter(e => e.radiusControl && !e.deleted && e.info.radius > 0) : [];
@@ -290,7 +311,8 @@ async function updateCensus(map) {
                 latlng: { lat: parseFloat(e.info.latitude), lng: parseFloat(e.info.longitude) },
                 radius: parseFloat(e.info.radius)
             }));
-            const values = await estimateCensusValues(controls.censusDataset.value, paths);
+            const values = await estimateCensusValues(controls.censusDataset.value, paths,
+                cityOnly ? { place: { state: CENSUS_CITY.state, name: CENSUS_CITY.name } } : {});
             if (requestId !== censusRequestId) return; // a newer update superseded this one
             entries.forEach((entry, i) => entry.censusValue = values[i]);
             const total = values.reduce((a, b) => a + b, 0);
@@ -306,7 +328,8 @@ async function updateCensus(map) {
     } else {
         status.textContent = show ? 'No libraries to measure.' : '';
     }
-    controls.censusLabel = controls.censusDataset.selectedOptions[0].textContent;
+    controls.censusLabel = controls.censusDataset.selectedOptions[0].textContent +
+        (cityOnly ? ', ' + CENSUS_CITY.label + ' residents only' : '');
     for (const entry of allMarkers) {
         if (entry.refreshInfoWindow) entry.refreshInfoWindow();
     }

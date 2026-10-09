@@ -6,7 +6,11 @@
 // holds the Census API key.  A block group that is only partly inside a shape
 // contributes its value multiplied by the fraction of its area inside.
 //
-// Requires boundary-calculator.js (project/unproject).
+// Can also count only people inside one city, using the city's TIGERweb
+// outline ("place") and the polygon-clipping library.
+//
+// Requires boundary-calculator.js (project/unproject) and, for city filtering,
+// polygon-clipping (global polygonClipping).
 
 const CENSUS_DATASETS = [
     { id: 'dec2020_population', label: 'Total population (2020 Census)' },
@@ -16,12 +20,14 @@ const CENSUS_DATASETS = [
 ];
 
 const TIGERWEB_BLOCK_GROUPS_URL = 'https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/11/query';
+const TIGERWEB_PLACES_URL = 'https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Places_CouSub_ConCity_SubMCD/MapServer/25/query';
 const CENSUS_BBOX_PADDING_DEGREES = 0.1;
 
 const censusCache = {
     features: new Map(),   // GEOID -> GeoJSON feature
     bbox: null,            // area for which features have been fetched
-    values: new Map()      // "dataset|state|county" -> {GEOID: value}
+    values: new Map(),     // "dataset|state|county" -> {GEOID: value}
+    places: new Map()      // "state|name" -> MultiPolygon coordinates
 };
 
 function bboxOfPaths(paths) {
@@ -104,6 +110,46 @@ async function ensureCensusGeometry(bbox) {
     censusCache.bbox = padded;
 }
 
+// The outline of an incorporated place (city) as MultiPolygon coordinates,
+// e.g. fetchPlaceGeometry('16', 'Boise City').
+async function fetchPlaceGeometry(state, baseName) {
+    const key = state + '|' + baseName;
+    if (censusCache.places.has(key))
+        return censusCache.places.get(key);
+    const params = new URLSearchParams({
+        where: "STATE='" + state + "' AND BASENAME='" + baseName.replace(/'/g, "''") + "'",
+        outFields: 'GEOID,NAME',
+        outSR: '4326',
+        maxAllowableOffset: '0.0001',
+        f: 'geojson'
+    });
+    const response = await fetch(TIGERWEB_PLACES_URL + '?' + params);
+    if (!response.ok)
+        throw new Error('Census city boundary request failed (' + response.status + ')');
+    const json = await response.json();
+    if (json.error || !json.features || !json.features.length)
+        throw new Error('Census has no city boundary named ' + baseName);
+    const multiPolygon = json.features.flatMap(f => toMultiPolygon(f.geometry));
+    censusCache.places.set(key, multiPolygon);
+    return multiPolygon;
+}
+
+function toMultiPolygon(geometry) {
+    return geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+}
+
+// Area in square meters of MultiPolygon coordinates (holes subtracted).
+function multiPolygonArea(multiPolygon, origin) {
+    let area = 0;
+    for (const rings of multiPolygon) {
+        rings.forEach((ring, index) => {
+            const a = Math.abs(ringArea(ring.map(c => project(origin, { lat: c[1], lng: c[0] }))));
+            area += index === 0 ? a : -a;
+        });
+    }
+    return area;
+}
+
 async function ensureCensusValues(datasetId, features) {
     const counties = new Set(features.map(f => f.properties.STATE + '|' + f.properties.COUNTY));
     await Promise.all([...counties].map(async (county) => {
@@ -182,12 +228,14 @@ function projectShape(path, origin) {
 }
 
 // paths: array of shapes, each an array of {lat, lng} (convex polygons).
+// options.place: {state, name} to count only people inside that city.
 // Returns an array of estimated values parallel to `paths`.
-async function estimateCensusValues(datasetId, paths) {
+async function estimateCensusValues(datasetId, paths, options = {}) {
     if (!paths.length)
         return [];
     const bbox = bboxOfPaths(paths);
     await ensureCensusGeometry(bbox);
+    const place = options.place ? await fetchPlaceGeometry(options.place.state, options.place.name) : null;
 
     const nearby = [...censusCache.features.values()].filter(f => bboxesIntersect(f.bbox, bbox));
     await ensureCensusValues(datasetId, nearby);
@@ -196,6 +244,14 @@ async function estimateCensusValues(datasetId, paths) {
     return paths.map(path => {
         const shapeBox = bboxOfPaths([path]);
         const shape = projectShape(path, origin);
+        let region = null;
+        if (place) {
+            const ring = path.map(p => [p.lng, p.lat]);
+            ring.push(ring[0]);
+            region = polygonClipping.intersection([ring], place);
+            if (!region.length)
+                return 0;
+        }
         let total = 0;
         for (const feature of nearby) {
             if (!bboxesIntersect(feature.bbox, shapeBox))
@@ -204,7 +260,14 @@ async function estimateCensusValues(datasetId, paths) {
             const value = values && values[feature.properties.GEOID];
             if (!value)
                 continue;
-            total += value * fractionInside(feature.geometry, shape, origin);
+            if (region) {
+                // part of the block group that is inside both the shape and the city
+                const part = polygonClipping.intersection(toMultiPolygon(feature.geometry), region);
+                if (part.length)
+                    total += value * multiPolygonArea(part, origin) / multiPolygonArea(toMultiPolygon(feature.geometry), origin);
+            } else {
+                total += value * fractionInside(feature.geometry, shape, origin);
+            }
         }
         return Math.round(total);
     });
