@@ -1,6 +1,6 @@
 <?php
 // Simple test runner for parse_address_with_commas without requiring PHPUnit.
-require_once __DIR__ . '/../_inc/usps-address-sanitizer.php';
+require_once __DIR__ . '/../_inc/address-sanitizer.php';
 
 // CSV format: address,line_1,line_2,city,state,zip
 // line_2 may be empty. If line_1 equals the literal string "EXCEPTION" we'll expect the parser

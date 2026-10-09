@@ -1,22 +1,18 @@
 <?php
 
-function geocode($address)
+// Query the Google Geocoding API.  Returns the decoded JSON response, or false on a failed request.
+function google_geocode_request($address_string)
 {
     $api_key = get_cfg_var('google_maps_api_key');
     if (!$api_key)
         throw new Exception('No google_maps_api_key set in php.ini');
 
-    $address_string = $address['line_1'];
-    //if ($address['line_2'])
-    //    $address_string .= ', '.$address['line_2'];
-    $address_string .= ', ' . $address['city'];
-    $address_string .= ', ' . $address['state'];
     $encoded_address = urlencode($address_string);
 
     $ch = curl_init();
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_URL => 'https://maps.googleapis.com/maps/api/geocode/json?address=' . $encoded_address . '&key=' . $api_key,
+        CURLOPT_URL => 'https://maps.googleapis.com/maps/api/geocode/json?components=country:US&address=' . $encoded_address . '&key=' . $api_key,
     ]);
     $result = curl_exec($ch);
     if ($result === false) {
@@ -29,25 +25,35 @@ function geocode($address)
     }
     curl_close($ch);
 
-    //error_log($result);
     $json = json_decode($result);
     if ($json->status != 'OK') {
         error_log('Geocode request failed.  $json =' . $result);
-        error_log('Geocode request failed.  var_export($json) =' . var_export($json, true));
-        return false;
     }
-    $location = $json->results[0]->geometry->location;
+    return $json;
+}
+
+function geocode_result_to_coordinates($result)
+{
+    $location = $result->geometry->location;
     $ret = array(
         'latitude' => $location->lat,
         'longitude' => $location->lng
     );
-    $address_components = $json->results[0]->address_components;
-    foreach ($address_components as $component) {
+    foreach ($result->address_components as $component) {
         if (in_array('neighborhood', $component->types)) {
             $ret['neighborhood'] = $component->long_name;
         }
     }
     return $ret;
+}
+
+function geocode($address)
+{
+    $address_string = $address['line_1'] . ', ' . $address['city'] . ', ' . $address['state'];
+    $json = google_geocode_request($address_string);
+    if ($json === false || $json->status != 'OK')
+        return false;
+    return geocode_result_to_coordinates($json->results[0]);
 }
 
 function lp_get_map_id()

@@ -2,7 +2,7 @@
 
 require_once('lp-init.php');
 require_once('googlemaps.php');
-require_once('usps-address-sanitizer.php');
+require_once('address-sanitizer.php');
 
 function lp_campaign_map($atts = [], $content = null)
 {

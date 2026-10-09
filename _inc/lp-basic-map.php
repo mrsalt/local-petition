@@ -2,7 +2,7 @@
 
 require_once('lp-init.php');
 require_once('googlemaps.php');
-require_once('usps-address-sanitizer.php');
+require_once('address-sanitizer.php');
 
 function lp_basic_map($atts = [], $content = null)
 {
@@ -89,7 +89,7 @@ function lp_place_map_item_json_handler() {
         wp_die();
     }
     $address_id = store_address($sanitized_address);
-    $coordinates = geocode($address);
+    $coordinates = $sanitized_address['coordinates'];
     if ($coordinates)
         update_coordinates($address_id, $coordinates);
 

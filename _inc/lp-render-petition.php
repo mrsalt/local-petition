@@ -1,7 +1,7 @@
 <?php
 
 require_once('lp-init.php');
-require_once('usps-address-sanitizer.php');
+require_once('address-sanitizer.php');
 require_once('googlemaps.php');
 require_once('lp-form-utils.php');
 
@@ -128,7 +128,7 @@ function lp_attempt_submit($style, &$continue_form_render)
         }
 
         if (!$signer || $sanitized_address_id !== $signer->address_id) {
-            $coordinates = geocode($sanitized_address);
+            $coordinates = $sanitized_address['coordinates'];
             if ($coordinates)
                 update_coordinates($sanitized_address_id, $coordinates);
         }
