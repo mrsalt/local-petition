@@ -378,10 +378,6 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-function censusListSuffix(entry) {
-    return entry.censusValue === undefined ? '' : ' – ' + formatCensusValue(entry);
-}
-
 function nearestLocalityId(info) {
     let best = undefined;
     let bestDistance = Infinity;
@@ -424,11 +420,11 @@ function updateMarkerListForLocality(localityId, markerListEl = undefined) {
             // Another option would be to set locality to null for the other items that
             // share the same locality id.
             if ("#D47BAC" === m.info.radius_color) {
-                addToMarkerList(m.info.name + censusListSuffix(m), markerListEl);
+                addToMarkerList(m.info.name, markerListEl, formatCensusValue(m));
             }
         }
         for (const m of proposed) {
-            addToMarkerList((m.info.name || 'Unnamed library') + ' (proposed)' + censusListSuffix(m), markerListEl);
+            addToMarkerList((m.info.name || 'Unnamed library') + ' (proposed)', markerListEl, formatCensusValue(m));
         }
     } else {
         // Optionally show empty state
@@ -967,7 +963,7 @@ function updateLocalityButtons() {
     localityRightButton.style.display = hideArrows ? 'none' : '';
 }
 
-function addToMarkerList(markerName, markerListEl = undefined) {
+function addToMarkerList(markerName, markerListEl = undefined, detail = '') {
     if (!markerListEl) {
         markerListEl = document.querySelector('.lp-locality-marker-list');
         if (!markerListEl) return;
@@ -977,6 +973,13 @@ function addToMarkerList(markerName, markerListEl = undefined) {
     }
     const li = document.createElement('li');
     li.textContent = markerName;
+    if (detail) {
+        // shown on its own line below the name
+        const detailEl = document.createElement('div');
+        detailEl.classList.add('lp-marker-detail');
+        detailEl.textContent = detail;
+        li.appendChild(detailEl);
+    }
     markerListEl.appendChild(li);
 }
 
