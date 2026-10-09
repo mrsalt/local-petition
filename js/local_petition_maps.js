@@ -155,6 +155,40 @@ async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
         checkbox.addEventListener('change', () => updateBorders(map));
         addSidebarRow(element, [checkbox, label]);
 
+        // Census data ------------------------------------------------------
+        const censusCheckbox = document.createElement('input');
+        censusCheckbox.type = 'checkbox';
+        censusCheckbox.id = 'lp-show-census-' + Math.random().toString(36).slice(2);
+        const censusCheckboxLabel = document.createElement('label');
+        censusCheckboxLabel.textContent = 'Show census data';
+        censusCheckboxLabel.htmlFor = censusCheckbox.id;
+        addSidebarRow(element, [censusCheckbox, censusCheckboxLabel]);
+
+        const censusDataset = document.createElement('select');
+        for (const dataset of CENSUS_DATASETS) {
+            const option = document.createElement('option');
+            option.value = dataset.id;
+            option.textContent = dataset.label;
+            censusDataset.appendChild(option);
+        }
+        censusDataset.style.display = 'none';
+        const censusStatus = document.createElement('div');
+        censusStatus.classList.add('lp-census-status');
+        censusStatus.style.display = 'none';
+        addSidebarRow(element, [censusDataset, censusStatus]);
+
+        Object.assign(map.lpcontrols, {
+            showCensus: censusCheckbox,
+            censusDataset: censusDataset,
+            censusStatus: censusStatus,
+            censusLabel: censusDataset.selectedOptions[0].textContent
+        });
+        censusCheckbox.addEventListener('change', () => updateCensus(map));
+        censusDataset.addEventListener('change', () => {
+            for (const entry of allMarkers) entry.censusValue = undefined;
+            updateCensus(map);
+        });
+
         // Clicking the map proposes a new library at that spot.
         // The locality boundary layer swallows clicks inside the city, so it
         // forwards them here too (see highlightArea).
@@ -187,10 +221,14 @@ function updateBorders(map) {
             entry.borderPolygon.setMap(null);
             entry.borderPolygon = undefined;
         }
+        entry.shapePath = undefined;
         if (entry.radiusControl && !entry.deleted)
             entry.radiusControl.setVisible(true);
     }
-    if (overlap) return;
+    if (overlap) {
+        scheduleCensusUpdate(map);
+        return;
+    }
 
     const entries = allMarkers.filter(e => e.radiusControl && !e.deleted && e.info.radius > 0);
     const circles = entries.map(e => ({
@@ -200,6 +238,7 @@ function updateBorders(map) {
     const paths = calculateBorderPolygons(circles);
     entries.forEach((entry, i) => {
         if (!paths[i]) return;
+        entry.shapePath = paths[i];
         entry.radiusControl.setVisible(false);
         entry.borderPolygon = new google.maps.Polygon({
             paths: paths[i],
@@ -212,6 +251,66 @@ function updateBorders(map) {
             clickable: false
         });
     });
+    scheduleCensusUpdate(map);
+}
+
+// Census data ---------------------------------------------------------------
+
+let censusTimer = undefined;
+let censusRequestId = 0;
+
+function scheduleCensusUpdate(map) {
+    clearTimeout(censusTimer);
+    censusTimer = setTimeout(() => updateCensus(map), 400);
+}
+
+function formatCensusValue(entry) {
+    return entry.censusValue === undefined ? '' : entry.censusValue.toLocaleString();
+}
+
+// Estimates the census value inside each circle/polygon, or clears the
+// estimates when "Show census data" is unchecked.
+async function updateCensus(map) {
+    const controls = map.lpcontrols;
+    if (!controls || !controls.showCensus) return;
+    const requestId = ++censusRequestId;
+    const status = controls.censusStatus;
+    const show = controls.showCensus.checked;
+    controls.censusDataset.style.display = show ? '' : 'none';
+    status.style.display = show ? '' : 'none';
+
+    const entries = show ? allMarkers.filter(e => e.radiusControl && !e.deleted && e.info.radius > 0) : [];
+    for (const entry of allMarkers) {
+        if (!entries.includes(entry)) entry.censusValue = undefined;
+    }
+    if (entries.length) {
+        status.textContent = 'Loading census data...';
+        try {
+            const paths = entries.map(e => e.shapePath || circleToPath({
+                latlng: { lat: parseFloat(e.info.latitude), lng: parseFloat(e.info.longitude) },
+                radius: parseFloat(e.info.radius)
+            }));
+            const values = await estimateCensusValues(controls.censusDataset.value, paths);
+            if (requestId !== censusRequestId) return; // a newer update superseded this one
+            entries.forEach((entry, i) => entry.censusValue = values[i]);
+            const total = values.reduce((a, b) => a + b, 0);
+            const overlapping = controls.bordersOverlap.checked;
+            status.textContent = 'Total: ' + total.toLocaleString() +
+                (overlapping ? ' (people in overlapping areas are counted more than once)' : '');
+        } catch (e) {
+            if (requestId !== censusRequestId) return;
+            console.error('Census data error:', e);
+            for (const entry of entries) entry.censusValue = undefined;
+            status.textContent = 'Census data unavailable: ' + e.message;
+        }
+    } else {
+        status.textContent = show ? 'No libraries to measure.' : '';
+    }
+    controls.censusLabel = controls.censusDataset.selectedOptions[0].textContent;
+    for (const entry of allMarkers) {
+        if (entry.refreshInfoWindow) entry.refreshInfoWindow();
+    }
+    refreshCurrentMarkerList();
 }
 
 function roundCoordinate(value) {
@@ -273,6 +372,16 @@ function loadProposedLibraries(element) {
     return Promise.all(promises).then(() => updateBorders(element.map));
 }
 
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function censusListSuffix(entry) {
+    return entry.censusValue === undefined ? '' : ' – ' + formatCensusValue(entry);
+}
+
 function nearestLocalityId(info) {
     let best = undefined;
     let bestDistance = Infinity;
@@ -315,11 +424,11 @@ function updateMarkerListForLocality(localityId, markerListEl = undefined) {
             // Another option would be to set locality to null for the other items that
             // share the same locality id.
             if ("#D47BAC" === m.info.radius_color) {
-                addToMarkerList(m.info.name, markerListEl);
+                addToMarkerList(m.info.name + censusListSuffix(m), markerListEl);
             }
         }
         for (const m of proposed) {
-            addToMarkerList((m.info.name || 'Unnamed library') + ' (proposed)', markerListEl);
+            addToMarkerList((m.info.name || 'Unnamed library') + ' (proposed)' + censusListSuffix(m), markerListEl);
         }
     } else {
         // Optionally show empty state
@@ -777,13 +886,20 @@ async function addMapMarker(element, info) {
         allMarkers[allMarkers.length - 1]['radiusControl'] = radiusControl;
 
         // radius unit is meters
-        const infowindow = new google.maps.InfoWindow({
-            content: info.temporary ?
-                (info.name ? info.name + '<br>' : '') +
+        function buildInfoContent() {
+            // Proposed library names come from the page URL, so escape them.
+            let content = info.temporary ?
+                (info.name ? escapeHtml(info.name) + '<br>' : '') +
                 'Proposed library<br>Drag to move, right-click to remove' :
                 info.name + '<br>' +
-                info.line_1 + ', ' + info.city + ', ' + info.state
-        });
+                info.line_1 + ', ' + info.city + ', ' + info.state;
+            if (markerEntry.censusValue !== undefined) {
+                content += '<br>' + map.lpcontrols.censusLabel + ': ' + formatCensusValue(markerEntry);
+            }
+            return content;
+        }
+        const infowindow = new google.maps.InfoWindow({ content: buildInfoContent() });
+        markerEntry.refreshInfoWindow = () => infowindow.setContent(buildInfoContent());
         if (info.temporary) {
             marker.addListener('drag', (e) => {
                 info.latitude = e.latLng.lat();

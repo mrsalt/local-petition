@@ -92,3 +92,13 @@ function calculateBorderPolygons(circles) {
         return polygon.length < 3 ? null : polygon.map(p => unproject(origin, p));
     });
 }
+
+// A single circle as a polygon path of {lat, lng} points.
+function circleToPath(circle) {
+    const path = [];
+    for (let s = 0; s < CIRCLE_SEGMENTS; s++) {
+        const angle = 2 * Math.PI * s / CIRCLE_SEGMENTS;
+        path.push(unproject(circle.latlng, { x: circle.radius * Math.cos(angle), y: circle.radius * Math.sin(angle) }));
+    }
+    return path;
+}

@@ -75,6 +75,7 @@ add_shortcode('campaign_map', 'lp_campaign_map');
 add_shortcode('campaign_routes', 'lp_campaign_routes');
 require_once('_inc/lp-basic-map.php');
 add_shortcode('basic_map', 'lp_basic_map');
+require_once('_inc/lp-census.php');
 
 // Register AJAX handlers
 add_action('wp_ajax_lp_get_supporters_json', 'lp_get_supporters_json_handler');
@@ -85,6 +86,8 @@ add_action('wp_ajax_lp_load_markers_json', 'lp_load_markers_json_handler');
 add_action('wp_ajax_nopriv_lp_load_markers_json', 'lp_load_markers_json_handler');
 add_action('wp_ajax_lp_load_localities_json', 'lp_load_localities_json_handler');
 add_action('wp_ajax_nopriv_lp_load_localities_json', 'lp_load_localities_json_handler');
+add_action('wp_ajax_lp_census_population', 'lp_census_population_json_handler');
+add_action('wp_ajax_nopriv_lp_census_population', 'lp_census_population_json_handler');
 
 // AJAX handlers only for logged in users
 add_action('wp_ajax_lp_get_map_routes', 'lp_get_map_routes_json_handler');
@@ -103,6 +106,7 @@ wp_enqueue_style('local_petition_style', plugins_url('css/local_petition.css', _
 wp_enqueue_script('jscookie', plugins_url('js/js.cookie.min.js', __FILE__), array(), '3.0.5');
 wp_enqueue_script('local_petition_js', plugins_url('js/local_petition.js', __FILE__), array(), LOCAL_PETITION_VERSION);
 wp_enqueue_script('local_petition_boundary_calculator', plugins_url('js/boundary-calculator.js', __FILE__), array(), LOCAL_PETITION_VERSION);
-wp_enqueue_script('local_petition_maps', plugins_url('js/local_petition_maps.js', __FILE__), array('local_petition_boundary_calculator'), LOCAL_PETITION_VERSION);
+wp_enqueue_script('local_petition_census', plugins_url('js/census-population.js', __FILE__), array('local_petition_boundary_calculator'), LOCAL_PETITION_VERSION);
+wp_enqueue_script('local_petition_maps', plugins_url('js/local_petition_maps.js', __FILE__), array('local_petition_boundary_calculator', 'local_petition_census'), LOCAL_PETITION_VERSION);
 wp_register_script('recaptcha', 'https://www.google.com/recaptcha/api.js?render=' . reCAPTCHA_site_key);
 wp_register_script('markerclusterer', 'https://unpkg.com/@googlemaps/markerclusterer/dist/index.min.js');
