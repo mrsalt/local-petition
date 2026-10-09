@@ -156,13 +156,21 @@ async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
         addSidebarRow(element, [checkbox, label]);
 
         // Clicking the map proposes a new library at that spot.
-        map.addListener('click', (e) => {
+        // The locality boundary layer swallows clicks inside the city, so it
+        // forwards them here too (see highlightArea).
+        let lastClickTime = 0;
+        map.lpClickHandler = (latLng) => {
+            // Guard against the map and the boundary layer both reporting one click.
+            const now = Date.now();
+            if (now - lastClickTime < 250) return;
+            lastClickTime = now;
             if (menuControl) {
                 hideContextMenu();
                 return;
             }
-            addProposedLibrary(element, e.latLng.lat(), e.latLng.lng());
-        });
+            addProposedLibrary(element, latLng.lat(), latLng.lng());
+        };
+        map.addListener('click', (e) => map.lpClickHandler(e.latLng));
     }
 }
 
@@ -309,9 +317,12 @@ async function highlightArea(map, type, locality) {
         else
             console.error('highlightArea: type ' + type + ' not recognized');
         let featureLayer = map.getFeatureLayer(layerType);
-        if (featureLayer.isAvailable)
+        if (featureLayer.isAvailable) {
+            if (map.lpClickHandler && !featureLayer.lpClickListener) {
+                featureLayer.lpClickListener = featureLayer.addListener('click', (e) => map.lpClickHandler(e.latLng));
+            }
             styleBoundary(place.id, featureLayer, locality['color']);
-        else
+        } else
             console.warn("Feature layer " + layerType + " not available");
     } else {
         console.warn("Locality query: No results");
