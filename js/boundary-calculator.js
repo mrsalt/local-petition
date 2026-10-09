@@ -1,145 +1,94 @@
-const {spherical} = await google.maps.importLibrary("geometry");
+"use strict";
 
-function overlapExists(circle1, circle2) {
-    const dist = spherical.computeDistanceBetween(circle1.latlng, circle2.latlng);
+// Turns a set of possibly-overlapping circles into polygons that don't overlap.
+//
+// Where two circles intersect, the boundary between them is the straight line
+// (the radical axis) through their two intersection points.  Each circle is
+// approximated by a polygon and then clipped, in turn, by that line for every
+// circle it intersects, keeping only the half on its own side.  Because the
+// radical axes of three mutually-intersecting circles meet at a single point,
+// the resulting polygons share edges with no gaps and no overlaps.
+//
+// circles: [{ latlng: {lat, lng}, radius: meters }]
+// returns: an array parallel to `circles`; each entry is an array of
+//          {lat, lng} points (a closed path), or null for a circle with no
+//          radius.
 
-    // Optional: check for non-overlapping or contained circles
-    if (dist > circle1.radius + circle2.radius || dist < Math.abs(circle1.radius - circle2.radius) || dist === 0)
-        return null; // no intersection or infinite intersections
-    return dist;
+const EARTH_RADIUS_METERS = 6371008.8;
+const CIRCLE_SEGMENTS = 120;
+
+function toRad(deg) {
+    return deg * Math.PI / 180;
 }
 
-// This returns the angle from the center of the first circle to the
-// intersecting point followed by the angle from the center of the
-// second circle to the intersecting point.
-function circleIntersections(p0, r0, p1, r1) {
-    // Step 1: distance between centers
-    const dx = p1.x - p0.x;
-    const dy = p1.y - p0.y;
-    const d = Math.sqrt(dx * dx + dy * dy);
-
-    // Step 2: distance from first center to midpoint of chord
-    const a = (r0 * r0 - r1 * r1 + d * d) / (2 * d);
-
-    // Step 3: height from base point to intersections
-    const h = Math.sqrt(r0 * r0 - a * a);
-
-    /*
-    // Step 4: coordinates of midpoint P2
-    const xm = p0.x + (a * dx) / d;
-    const ym = p0.y + (a * dy) / d;
-
-    // Step 5: offsets for the intersection points
-    const rx = -(dy * (h / d));
-    const ry = dx * (h / d);
-
-    // Step 6: intersection points
-    const p3 = { x: xm + rx, y: ym + ry };
-    const p4 = { x: xm - rx, y: ym - ry };
-
-    return [p3, p4];*/
-
-    // opposite / adjacent
-    return [Math.acos(h / a), Math.acos(h / (d - a))];
+// Project to a flat plane (meters) centered on `origin`.  Accurate enough for
+// circles a few miles wide.
+function project(origin, point) {
+    return {
+        x: toRad(point.lng - origin.lng) * Math.cos(toRad(origin.lat)) * EARTH_RADIUS_METERS,
+        y: toRad(point.lat - origin.lat) * EARTH_RADIUS_METERS
+    };
 }
 
-function normalize(angle) {
-    if (angle > 180)
-        return angle - 360;
-    if (angle < -180)
-        return angle + 360;
-    return angle;
+function unproject(origin, p) {
+    return {
+        lat: origin.lat + (p.y / EARTH_RADIUS_METERS) * 180 / Math.PI,
+        lng: origin.lng + (p.x / (EARTH_RADIUS_METERS * Math.cos(toRad(origin.lat)))) * 180 / Math.PI
+    };
 }
 
-function addAngles(angle1, angle2) {
-    return normalize(angle1 + angle2);
+// True if the circle boundaries cross (as opposed to being apart or nested).
+function circlesIntersect(r0, r1, d) {
+    return d > 0 && d < r0 + r1 && d > Math.abs(r0 - r1);
 }
 
-function addArcs(arcs, index, start, end) {
-    if (!arcs[index])
-        arcs[index] = [];
-    let segmentList = arcs[index];
-    let inserted = false;
-    const newSegment = { start: start, end: end };
-    for (let i = 0; i < segmentList.length; i++) {
-        if (start < segmentList[i].start) {
-            segmentList.splice(i, 0, newSegment);
-            inserted = true;
-            break;
+// Sutherland-Hodgman clip of a polygon against the half-plane f(p) <= 0, where
+// f(p) = 2 * (p . c) - k.
+function clipHalfPlane(polygon, c, k) {
+    const f = p => 2 * (p.x * c.x + p.y * c.y) - k;
+    const result = [];
+    for (let i = 0; i < polygon.length; i++) {
+        const a = polygon[i];
+        const b = polygon[(i + 1) % polygon.length];
+        const fa = f(a);
+        const fb = f(b);
+        if (fa <= 0)
+            result.push(a);
+        if ((fa < 0 && fb > 0) || (fa > 0 && fb < 0)) {
+            const t = fa / (fa - fb);
+            result.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
         }
     }
-    if (!inserted) {
-        segmentList.push(newSegment);
-    }
-}
-
-function addPoint(list, from, heading, distance) {
-    let point = spherical.computeOffset(from, distance, heading);
-    list.push(point);
-}
-
-function fillPoints(points, index, center, start, end, increment, radius) {
-    if (!points[index])
-        points[index] = [];
-    for (let angle = start; angle < end; angle += increment) {
-        addPoint(points[index], center, normalize(angle), radius);
-    }
-}
-
-function convertSegmentToCoordinates(segment, from, distance) {
-    return [spherical.computeOffset(from, distance, segment.start), spherical.computeOffset(from, distance, segment.end)];
+    return result;
 }
 
 function calculateBorderPolygons(circles) {
+    return circles.map((circle, i) => {
+        if (!(circle.radius > 0))
+            return null;
+        const origin = circle.latlng;
 
-    // Given a series of circles, find the distance between all circles.
-    // For each circle, keep a record of the line segments reducing the
-    // size of that circle, including the start and stop of the segment
-    // in degrees.
-    let arcs = {};
+        let polygon = [];
+        for (let s = 0; s < CIRCLE_SEGMENTS; s++) {
+            const angle = 2 * Math.PI * s / CIRCLE_SEGMENTS;
+            polygon.push({ x: circle.radius * Math.cos(angle), y: circle.radius * Math.sin(angle) });
+        }
 
-    for (let index1 = 0; index1 < circles.length; index1++) {
-        for (let index2 = index1 + 1; index2 < circles.length; index2++) {
-            const dist = overlapExists(circles[index1], circles[index2]);
-            if (dist) {
-                const heading = spherical.computeHeading(circles[index1].latlng, circles[index2].latlng);
-                const oppHeading = addAngles(heading, 180);
-                const anglesOfIntersection = circleIntersections({ x: 0, y: 0 }, circles[index1].radius, { x: dist, y: 0 }, circles[index2].radius);
-                addArcs(arcs, index1, addAngles(heading, - anglesOfIntersection[0]), addAngles(heading, anglesOfIntersection[0]));
-                addArcs(arcs, index2, addAngles(oppHeading, - anglesOfIntersection[1]), addAngles(oppHeading, anglesOfIntersection[1]));
-            }
+        for (let j = 0; j < circles.length; j++) {
+            if (j === i || !(circles[j].radius > 0))
+                continue;
+            const c = project(origin, circles[j].latlng);
+            const d = Math.hypot(c.x, c.y);
+            if (!circlesIntersect(circle.radius, circles[j].radius, d))
+                continue;
+            // Keep points closer (by power) to this circle than to circle j:
+            // |p|^2 - ri^2 <= |p-c|^2 - rj^2  <=>  2 p.c <= |c|^2 + ri^2 - rj^2
+            const k = d * d + circle.radius * circle.radius - circles[j].radius * circles[j].radius;
+            polygon = clipHalfPlane(polygon, c, k);
+            if (polygon.length < 3)
+                break;
         }
-    }
 
-    let points = {};
-    // Finally, for each circle, iterate over these segments in order of
-    // degrees, finding intersections and reducing the line segments and
-    // arcs so there are no overlapping args and line segments.
-    for (let index = 0; index < circles.length; index++) {
-        const segments = arcs[index];
-        if (!segments) {
-            fillPoints(points, index, circles[index].latlng, -180, 180, 0.5);
-        }
-        else {
-            let segmentPoints = [];
-            for (let i = 0; i < segments.length; i++) {
-                segmentPoints.push(convertSegmentToCoordinates(segments[i], circles[index].latlng, circles[index].radius));
-            }
-            for (let i = 0; i < segments.length; i++) {
-                let nextSegment = i == segments.length - 1 ? 0 : i + 1;
-                s1 = segmentPoints[i];
-                s2 = segmentPoints[nextSegment];
-                if (segments.length > 1 && segmentsOverlap(segments[i], segments[nextSegment])) {
-                    //let point = spherical.computeOffset(from, distance, heading);
-                    console.log(`need to determine overlapping point.  s1=${s1}, s2=${s2}`);
-                }
-                else {
-                    console.log(`no overlap.  s1=${s1}, s2=${s2}`);
-                    points[index].push(s1[0]);
-                    points[index].push(s1[1]);
-                    fillPoints(points, index, circles[index].latlng, segments[i].end, segments[nextSegment].start);
-                }
-            }
-        }
-    }
+        return polygon.length < 3 ? null : polygon.map(p => unproject(origin, p));
+    });
 }

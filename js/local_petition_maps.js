@@ -134,18 +134,60 @@ async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
             const val = e.target.value;
             radiusValue.textContent = val;
             applyRadiusMiles(val);
+            updateBorders(map);
         });
 
         addSidebarRow(element, [radiusLabel, radiusInput, radiusValue]);
 
-        /* we'll re-enable this checkbox once it does something.
         let checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
+        checkbox.checked = true;
+        checkbox.id = 'lp-borders-overlap-' + Math.random().toString(36).slice(2);
         let label = document.createElement('label');
         label.textContent = 'Borders Overlap';
+        label.htmlFor = checkbox.id;
         map.lpcontrols = { bordersOverlap: checkbox };
-        addSidebarRow(element, [checkbox, label]);*/
+        checkbox.addEventListener('change', () => updateBorders(map));
+        addSidebarRow(element, [checkbox, label]);
     }
+}
+
+// When "Borders Overlap" is unchecked, replace the radius circles with
+// polygons that don't overlap each other.  When checked, show the circles.
+function updateBorders(map) {
+    const checkbox = map.lpcontrols && map.lpcontrols.bordersOverlap;
+    const overlap = !checkbox || checkbox.checked;
+
+    for (const entry of allMarkers) {
+        if (entry.borderPolygon) {
+            entry.borderPolygon.setMap(null);
+            entry.borderPolygon = undefined;
+        }
+        if (entry.radiusControl && !entry.deleted)
+            entry.radiusControl.setVisible(true);
+    }
+    if (overlap) return;
+
+    const entries = allMarkers.filter(e => e.radiusControl && !e.deleted && e.info.radius > 0);
+    const circles = entries.map(e => ({
+        latlng: { lat: parseFloat(e.info.latitude), lng: parseFloat(e.info.longitude) },
+        radius: parseFloat(e.info.radius)
+    }));
+    const paths = calculateBorderPolygons(circles);
+    entries.forEach((entry, i) => {
+        if (!paths[i]) return;
+        entry.radiusControl.setVisible(false);
+        entry.borderPolygon = new google.maps.Polygon({
+            paths: paths[i],
+            strokeColor: entry.info.radius_color,
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            fillColor: entry.info.radius_color,
+            fillOpacity: 0.20,
+            map: map,
+            clickable: false
+        });
+    });
 }
 
 function updateMarkerListForLocality(localityId, markerListEl = undefined) {
@@ -633,6 +675,8 @@ async function addMapMarker(element, info) {
                         .then(response => {
                             marker.setMap(null);
                             radiusControl.setMap(null);
+                            markerEntry.deleted = true;
+                            updateBorders(map);
                         });
                 });
                 showContextMenu(element, e, [deleteButton]);
@@ -660,6 +704,10 @@ async function placeImageMarker(map, image, address, label) {
 function updateLocalityButtons() {
     localityLeftButton.disabled = locality_index === 0;
     localityRightButton.disabled = locality_index === localities.length - 1;
+    // With only one locality there is nothing to switch between.
+    const hideArrows = localities.length <= 1;
+    localityLeftButton.style.display = hideArrows ? 'none' : '';
+    localityRightButton.style.display = hideArrows ? 'none' : '';
 }
 
 function addToMarkerList(markerName, markerListEl = undefined) {
