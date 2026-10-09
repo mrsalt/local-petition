@@ -15,6 +15,7 @@ function sanitize_address($address)
         $address_string .= ' ' . $address['zip'];
 
     $json = google_geocode_request($address_string);
+    error_log('DEBUG sanitize_address input=' . var_export($address, true) . ' query=' . $address_string . ' response=' . json_encode($json));
     if ($json === false || $json->status != 'OK' || empty($json->results)) {
         $status = $json ? $json->status : 'request failed';
         return array('Error' => 'Address could not be verified (' . $status . ')', 'params' => $address);
