@@ -221,6 +221,7 @@ function roundCoordinate(value) {
 // Proposed libraries are never saved to the database.  Instead their positions
 // are kept in the page URL (?libs=lat,lng,name~lat,lng,name) so a plan can be shared.
 function updateUrlWithProposedLibraries() {
+    refreshCurrentMarkerList();
     const points = allMarkers
         .filter(e => e.info.temporary && !e.deleted)
         .map(e => roundCoordinate(e.info.latitude) + ',' + roundCoordinate(e.info.longitude) +
@@ -272,6 +273,27 @@ function loadProposedLibraries(element) {
     return Promise.all(promises).then(() => updateBorders(element.map));
 }
 
+function nearestLocalityId(info) {
+    let best = undefined;
+    let bestDistance = Infinity;
+    for (const locality of localities) {
+        const dLat = parseFloat(locality.latitude) - info.latitude;
+        const dLng = (parseFloat(locality.longitude) - info.longitude) * Math.cos(info.latitude * Math.PI / 180);
+        const distance = dLat * dLat + dLng * dLng;
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            best = locality.id;
+        }
+    }
+    return best;
+}
+
+function refreshCurrentMarkerList() {
+    if (locality_index !== undefined && locality_index !== null && localities[locality_index]) {
+        updateMarkerListForLocality(localities[locality_index].id);
+    }
+}
+
 function updateMarkerListForLocality(localityId, markerListEl = undefined) {
     if (!markerListEl) {
         markerListEl = document.querySelector('.lp-locality-marker-list');
@@ -280,8 +302,12 @@ function updateMarkerListForLocality(localityId, markerListEl = undefined) {
     // Populate the marker list for the current locality using markersByLocality
     // Clear existing list
     markerListEl.innerHTML = '';
-    if (markersByLocality[localityId]) {
-        const markers = markersByLocality[localityId];
+    // Proposed libraries aren't tied to a locality; they're listed under the
+    // locality whose center is closest.
+    const proposed = allMarkers.filter(e => e.info.temporary && !e.deleted &&
+        nearestLocalityId(e.info) === localityId);
+    if (markersByLocality[localityId] || proposed.length) {
+        const markers = markersByLocality[localityId] || [];
         for (const m of markers) {
             // kinda weird to check this here, but the marker's radius color is currently
             // the only way we have to determine whether the marker is a 'primary' marker
@@ -291,6 +317,9 @@ function updateMarkerListForLocality(localityId, markerListEl = undefined) {
             if ("#D47BAC" === m.info.radius_color) {
                 addToMarkerList(m.info.name, markerListEl);
             }
+        }
+        for (const m of proposed) {
+            addToMarkerList((m.info.name || 'Unnamed library') + ' (proposed)', markerListEl);
         }
     } else {
         // Optionally show empty state
