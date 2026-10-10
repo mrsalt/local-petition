@@ -12,7 +12,47 @@ const LP_CENSUS_DATASETS = array(
 
 // Returns {GEOID: value} for every block group in one county.  The Census API
 // requires a key (set census_api_key in php.ini), so the browser asks us
-// instead of calling the Census API directly.  Results are cached.
+// instead of calling the Census API directly.  Results are saved as static
+// JSON files under uploads/ so Apache serves them without PHP (the browser
+// requests the file directly and only falls back to this handler on a miss),
+// and browsers are told to cache them.  Delete the files to force a refresh.
+const LP_CENSUS_CACHE_DIR = 'local-petition-census';
+
+function lp_census_cache_file($dataset_id, $state, $county) {
+    $upload = wp_upload_dir();
+    $dir = trailingslashit($upload['basedir']) . LP_CENSUS_CACHE_DIR;
+    return array($dir, $dir . "/$dataset_id-$state-$county.json");
+}
+
+function lp_census_cache_url_base() {
+    $upload = wp_upload_dir();
+    return trailingslashit($upload['baseurl']) . LP_CENSUS_CACHE_DIR . '/';
+}
+
+function lp_census_send_json_cached($json) {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: public, max-age=604800');
+    echo $json;
+    wp_die();
+}
+
+function lp_census_write_cache($dir, $file, $json) {
+    if (!wp_mkdir_p($dir))
+        return;
+    $htaccess = $dir . '/.htaccess';
+    if (!file_exists($htaccess)) {
+        file_put_contents($htaccess,
+            "<IfModule mod_headers.c>
+    Header set Cache-Control \"public, max-age=604800\"
+</IfModule>
+" .
+            "Options -Indexes
+");
+    }
+    $tmp = $file . '.' . getmypid() . '.tmp';
+    if (file_put_contents($tmp, $json) !== false)
+        rename($tmp, $file);
+}
 function lp_census_population_json_handler() {
     $api_key = get_cfg_var('census_api_key');
     if (!$api_key) {
@@ -29,11 +69,9 @@ function lp_census_population_json_handler() {
     }
     $dataset = LP_CENSUS_DATASETS[$dataset_id];
 
-    $cache_key = 'lp_census_' . md5($dataset_id . $state . $county);
-    $cached = get_transient($cache_key);
-    if ($cached !== false) {
-        wp_send_json($cached);
-        wp_die();
+    list($cache_dir, $cache_file) = lp_census_cache_file($dataset_id, $state, $county);
+    if (is_readable($cache_file)) {
+        lp_census_send_json_cached(file_get_contents($cache_file));
     }
 
     $url = 'https://api.census.gov/data/' . $dataset['path'] .
@@ -59,7 +97,7 @@ function lp_census_population_json_handler() {
         // The Census API uses large negative numbers for "not available".
         $result[$geoid] = max(0, intval($row[$header[$dataset['variable']]]));
     }
-    set_transient($cache_key, $result, 30 * DAY_IN_SECONDS);
-    wp_send_json($result);
-    wp_die();
+    $json = wp_json_encode($result);
+    lp_census_write_cache($cache_dir, $cache_file, $json);
+    lp_census_send_json_cached($json);
 }

@@ -157,13 +157,23 @@ async function ensureCensusValues(datasetId, features) {
         if (censusCache.values.has(cacheKey))
             return;
         const [state, countyCode] = county.split('|');
-        const response = await fetch('/wp-admin/admin-ajax.php?action=lp_census_population' +
-            '&dataset=' + encodeURIComponent(datasetId) +
-            '&state=' + encodeURIComponent(state) +
-            '&county=' + encodeURIComponent(countyCode));
-        const json = await response.json();
-        if (!response.ok)
-            throw new Error(json.error || 'Census data request failed');
+        // Try the static file first (served by Apache, cached by the browser).
+        // It doesn't exist until the handler has fetched it once, so fall back to that.
+        let json = null;
+        if (typeof lpCensus !== 'undefined' && lpCensus.cacheUrl) {
+            const staticResponse = await fetch(lpCensus.cacheUrl + datasetId + '-' + state + '-' + countyCode + '.json');
+            if (staticResponse.ok)
+                json = await staticResponse.json();
+        }
+        if (json === null) {
+            const response = await fetch('/wp-admin/admin-ajax.php?action=lp_census_population' +
+                '&dataset=' + encodeURIComponent(datasetId) +
+                '&state=' + encodeURIComponent(state) +
+                '&county=' + encodeURIComponent(countyCode));
+            json = await response.json();
+            if (!response.ok)
+                throw new Error(json.error || 'Census data request failed');
+        }
         censusCache.values.set(cacheKey, json);
     }));
 }
