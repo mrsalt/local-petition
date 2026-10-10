@@ -1,10 +1,13 @@
 <?php
 
+define('LP_RECAPTCHA_MIN_SCORE', 0.5);
+
 function verify_recaptcha($token)
 {
     $ch = curl_init();
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 10,
         CURLOPT_URL => 'https://www.google.com/recaptcha/api/siteverify',
         CURLOPT_POST => 1,
         CURLOPT_POSTFIELDS => http_build_query(array(
@@ -15,32 +18,69 @@ function verify_recaptcha($token)
     ]);
     $result = curl_exec($ch);
     if ($result === false) {
-        throw new Exception('curl_exec() returned false: curl_error=' . curl_error($ch) . ', curl_get_info=' . var_export(curl_getinfo($ch), true));
+        $error = curl_error($ch);
+        curl_close($ch);
+        throw new Exception('curl_exec() returned false: curl_error=' . $error);
     }
     curl_close($ch);
     return json_decode($result);
 }
 
-function check_captcha_in_post_body(&$content, &$continue_form_render)
+/**
+ * Verifies a reCAPTCHA v3 token with Google.  Returns true only if Google says the
+ * token is valid, was issued for the expected action, and scored as likely human.
+ * On failure, $error_code is set to 'duplicate', 'unavailable' or 'failed'.
+ */
+function lp_recaptcha_token_is_human($token, $action, &$error_code)
 {
-    if (LP_PRODUCTION) {
-        if (!array_key_exists('g-recaptcha-response', $_POST)) {
-            throw new Exception('g-recaptcha-response not found');
+    $error_code = 'failed';
+    if (!is_string($token) || $token === '') {
+        return false;
+    }
+    try {
+        $result = verify_recaptcha($token);
+    } catch (Exception $e) {
+        error_log('reCAPTCHA verification unavailable: ' . $e->getMessage());
+        $error_code = 'unavailable';
+        return false;
+    }
+    if (!is_object($result) || empty($result->success)) {
+        $codes = (is_object($result) && isset($result->{'error-codes'})) ? (array) $result->{'error-codes'} : [];
+        if (in_array('timeout-or-duplicate', $codes)) {
+            $error_code = 'duplicate';
         }
-        $result = verify_recaptcha($_POST['g-recaptcha-response']);
-        if (!$result->success) {
-            if (in_array('timeout-or-duplicate', $result->{'error-codes'})) {
-                $content .= '<div class="submit-error">Duplicate submission error.  Please scroll to the bottom and submit again.</div>';
-                $continue_form_render = true;
-                return $content;
-            } else {
-                $content .= '<div class="submit-error">Human verification failed.</div>';
-                return $content;
-            }
-            return false;
-        }
+        return false;
+    }
+    if (!isset($result->action) || $result->action !== $action) {
+        return false;
+    }
+    if (!isset($result->score) || $result->score < LP_RECAPTCHA_MIN_SCORE) {
+        error_log('reCAPTCHA rejected submission, score=' . ($result->score ?? 'none') . ', ip=' . $_SERVER['REMOTE_ADDR']);
+        return false;
     }
     return true;
+}
+
+// Returns true if the submission may proceed.  On false, $content holds the error to show.
+function check_captcha_in_post_body(&$content, &$continue_form_render)
+{
+    if (!LP_PRODUCTION) {
+        return true;
+    }
+    $token = isset($_POST['g-recaptcha-response']) ? $_POST['g-recaptcha-response'] : '';
+    if (lp_recaptcha_token_is_human($token, 'submit', $error_code)) {
+        return true;
+    }
+    if ($error_code === 'duplicate') {
+        $content .= '<div class="submit-error">Duplicate submission error.  Please scroll to the bottom and submit again.</div>';
+        $continue_form_render = true;
+    } elseif ($error_code === 'unavailable') {
+        $content .= '<div class="submit-error">Human verification is temporarily unavailable.  Please try again.</div>';
+        $continue_form_render = true;
+    } else {
+        $content .= '<div class="submit-error">Human verification failed.</div>';
+    }
+    return false;
 }
 
 function add_submit_button_with_captcha($buttons)
