@@ -8,7 +8,8 @@
       var url = new URL(frame.getAttribute('src'), location.href);
       url.hash = ''; // drop #view=fitH etc.
 
-      var name = decodeURIComponent(url.pathname.split('/').pop());
+      var name = url.pathname.split('/').pop();
+      try { name = decodeURIComponent(name); } catch (e) { /* keep raw name */ }
       var label = frame.dataset.label || frame.title || name;
 
       var link = document.createElement('a');
