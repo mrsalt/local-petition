@@ -279,6 +279,34 @@ div.interactive-map-sidebar > hr {
     padding: 0px;
 }
 
+/* "Loading census data" with animated dots */
+div.lp-census-status.lp-loading {
+    animation: lp-pulse 1.4s ease-in-out infinite;
+}
+
+div.lp-census-status.lp-loading::after {
+    content: '...';
+    display: inline-block;
+    width: 0;
+    overflow: hidden;
+    vertical-align: bottom;
+    animation: lp-dots 1.2s steps(4, end) infinite;
+}
+
+@keyframes lp-dots {
+    to { width: 1.2em; }
+}
+
+@keyframes lp-pulse {
+    50% { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    div.lp-census-status.lp-loading {
+        animation: none;
+    }
+}
+
 button.lp-locality-left,
 button.lp-locality-right {
     padding-left: 10px;

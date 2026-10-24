@@ -342,6 +342,7 @@ async function updateCensus(map) {
     controls.censusCityOption.style.display = show && locality ? '' : 'none';
     const cityOnly = controls.censusCity.checked && !!locality;
     status.style.display = show ? '' : 'none';
+    status.classList.remove('lp-loading');
 
     // Only libraries in the locality being viewed are measured; the other
     // localities' libraries aren't worth the download until someone visits them.
@@ -351,7 +352,8 @@ async function updateCensus(map) {
         if (!entries.includes(entry)) entry.censusValue = undefined;
     }
     if (entries.length) {
-        status.textContent = 'Loading census data...';
+        status.textContent = 'Loading census data';
+        status.classList.add('lp-loading'); // CSS animates the trailing dots
         try {
             const paths = entries.map(e => e.shapePath || circleToPath({
                 latlng: { lat: parseFloat(e.info.latitude), lng: parseFloat(e.info.longitude) },
@@ -360,6 +362,7 @@ async function updateCensus(map) {
             const values = await estimateCensusValues(controls.censusDataset.value, paths,
                 cityOnly ? { place: censusPlaceForLocality(locality) } : {});
             if (requestId !== censusRequestId) return; // a newer update superseded this one
+            status.classList.remove('lp-loading');
             entries.forEach((entry, i) => entry.censusValue = values[i]);
             const total = values.reduce((a, b) => a + b, 0);
             const overlapping = controls.bordersOverlap.checked;
@@ -367,6 +370,7 @@ async function updateCensus(map) {
                 (overlapping ? ' (people in overlapping areas are counted more than once)' : '');
         } catch (e) {
             if (requestId !== censusRequestId) return;
+            status.classList.remove('lp-loading');
             console.error('Census data error:', e);
             for (const entry of entries) entry.censusValue = undefined;
             status.textContent = 'Census data unavailable: ' + e.message;
