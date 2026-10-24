@@ -15,9 +15,6 @@ const DEFAULT_RADIUS_MILES = 2.0;
 let currentRadiusMeters = DEFAULT_RADIUS_MILES * 1609.344;
 const PROPOSED_LIBRARY_COLOR = '#3B82F6';
 const PROPOSED_LIBRARIES_PARAM = 'libs';
-// The city the "residents only" census option counts.  `name` is the city's
-// Census base name (see TIGERweb "Incorporated Places") and `state` its FIPS code.
-const CENSUS_CITY = { label: 'Boise', name: 'Boise City', state: '16' };
 
 function addSidebarRow(element, items, addRow = true) {
     const interactiveContainer = element.closest('div.interactive-map-container');
@@ -194,7 +191,7 @@ async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
         cityCheckbox.type = 'checkbox';
         cityCheckbox.id = 'lp-census-city-' + Math.random().toString(36).slice(2);
         const cityLabel = document.createElement('label');
-        cityLabel.textContent = CENSUS_CITY.label + ' residents only';
+        cityLabel.textContent = 'Residents only';
         cityLabel.htmlFor = cityCheckbox.id;
         const cityOption = document.createElement('div');
         cityOption.appendChild(cityCheckbox);
@@ -210,6 +207,7 @@ async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
             censusDataset: censusDataset,
             censusCity: cityCheckbox,
             censusCityOption: cityOption,
+            censusCityLabel: cityLabel,
             censusStatus: censusStatus,
             censusLabel: censusDataset.selectedOptions[0].textContent
         });
@@ -302,6 +300,34 @@ function formatCensusValue(entry) {
     return entry.censusValue === undefined ? '' : entry.censusValue.toLocaleString();
 }
 
+function currentLocality() {
+    return locality_index !== undefined && locality_index !== null ? localities[locality_index] : undefined;
+}
+
+// Whether a library belongs to the locality: saved libraries by locality_id,
+// proposed ones by the nearest locality.  Libraries with no locality_id aren't
+// excluded from any locality.
+function entryInLocality(entry, localityId) {
+    const id = entry.info.temporary ? nearestLocalityId(entry.info) : entry.info.locality_id;
+    return !id || id === localityId;
+}
+
+// Locality names look like "Boise, ID".  Returns the Census place to look up:
+// {state: FIPS code, name: city name}.
+function censusPlaceForLocality(locality) {
+    const match = /^(.*),\s*([A-Za-z]{2})\s*$/.exec(locality.name);
+    const city = match ? match[1].trim() : locality.name.trim();
+    const stateAbbreviation = (match ? match[2] : locality.state || '').toUpperCase();
+    return { state: STATE_FIPS[stateAbbreviation], name: city };
+}
+
+function updateCensusCityLabel(map) {
+    const controls = map.lpcontrols;
+    const locality = currentLocality();
+    if (controls && controls.censusCityLabel)
+        controls.censusCityLabel.textContent = (locality ? locality.name : 'City') + ' residents only';
+}
+
 // Estimates the census value inside each circle/polygon, or clears the
 // estimates when "Load census data" is unchecked.
 async function updateCensus(map) {
@@ -311,11 +337,16 @@ async function updateCensus(map) {
     const status = controls.censusStatus;
     const show = controls.showCensus.checked;
     controls.censusDataset.style.display = show ? '' : 'none';
-    controls.censusCityOption.style.display = show ? '' : 'none';
-    const cityOnly = controls.censusCity.checked;
+    const locality = currentLocality();
+    updateCensusCityLabel(map);
+    controls.censusCityOption.style.display = show && locality ? '' : 'none';
+    const cityOnly = controls.censusCity.checked && !!locality;
     status.style.display = show ? '' : 'none';
 
-    const entries = show ? allMarkers.filter(e => e.radiusControl && !e.deleted && e.info.radius > 0) : [];
+    // Only libraries in the locality being viewed are measured; the other
+    // localities' libraries aren't worth the download until someone visits them.
+    const entries = show ? allMarkers.filter(e => e.radiusControl && !e.deleted && e.info.radius > 0 &&
+        (!locality || entryInLocality(e, locality.id))) : [];
     for (const entry of allMarkers) {
         if (!entries.includes(entry)) entry.censusValue = undefined;
     }
@@ -327,12 +358,12 @@ async function updateCensus(map) {
                 radius: parseFloat(e.info.radius)
             }));
             const values = await estimateCensusValues(controls.censusDataset.value, paths,
-                cityOnly ? { place: { state: CENSUS_CITY.state, name: CENSUS_CITY.name } } : {});
+                cityOnly ? { place: censusPlaceForLocality(locality) } : {});
             if (requestId !== censusRequestId) return; // a newer update superseded this one
             entries.forEach((entry, i) => entry.censusValue = values[i]);
             const total = values.reduce((a, b) => a + b, 0);
             const overlapping = controls.bordersOverlap.checked;
-            status.textContent = 'Total: ' + total.toLocaleString() +
+            status.textContent = 'Total' + (locality ? ' for ' + locality.name : '') + ': ' + total.toLocaleString() +
                 (overlapping ? ' (people in overlapping areas are counted more than once)' : '');
         } catch (e) {
             if (requestId !== censusRequestId) return;
@@ -344,7 +375,7 @@ async function updateCensus(map) {
         status.textContent = show ? 'No libraries to measure.' : '';
     }
     controls.censusLabel = controls.censusDataset.selectedOptions[0].textContent +
-        (cityOnly ? ', ' + CENSUS_CITY.label + ' residents only' : '');
+        (cityOnly ? ', ' + locality.name + ' residents only' : '');
     for (const entry of allMarkers) {
         if (entry.refreshInfoWindow) entry.refreshInfoWindow();
     }
@@ -485,9 +516,7 @@ function updateOtherMarkerList(listed, localityId) {
     let count = 0;
     for (const m of allMarkers) {
         if (!m.radiusControl || m.deleted || listed.has(m)) continue;
-        // proposed libraries have no locality_id; they belong to the nearest locality
-        const markerLocalityId = m.info.temporary ? nearestLocalityId(m.info) : m.info.locality_id;
-        if (markerLocalityId && markerLocalityId !== localityId) continue;
+        if (!entryInLocality(m, localityId)) continue;
         const name = (m.info.name || 'Unnamed library') + (m.info.temporary ? ' (proposed)' : '');
         addToMarkerList(name, otherListEl, formatCensusValue(m));
         count++;
@@ -1079,6 +1108,9 @@ function initializeLocalityControls(element) {
         element.map.setCenter({ lat: parseFloat(cur.latitude), lng: parseFloat(cur.longitude) });
         highlightArea(element.map, 'locality', cur);
         updateMarkerListForLocality(cur.id, markerListEl);
+        // measure this locality's libraries (no-op until "Load census data" is checked)
+        updateCensusCityLabel(element.map);
+        scheduleCensusUpdate(element.map);
     }
 
     // Initialize title and map center if we have at least one locality

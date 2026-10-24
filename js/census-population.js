@@ -24,6 +24,62 @@ const TIGERWEB_PLACES_URL = 'https://tigerweb.geo.census.gov/arcgis/rest/service
 // Block groups are fetched one small tile at a time, and only for tiles that a
 // library's shape touches, so libraries in distant cities don't make us
 // download everything in between.
+// State abbreviation -> FIPS code, for looking up a city's boundary.
+const STATE_FIPS = {
+    AL: '01',
+    AK: '02',
+    AZ: '04',
+    AR: '05',
+    CA: '06',
+    CO: '08',
+    CT: '09',
+    DE: '10',
+    DC: '11',
+    FL: '12',
+    GA: '13',
+    HI: '15',
+    ID: '16',
+    IL: '17',
+    IN: '18',
+    IA: '19',
+    KS: '20',
+    KY: '21',
+    LA: '22',
+    ME: '23',
+    MD: '24',
+    MA: '25',
+    MI: '26',
+    MN: '27',
+    MS: '28',
+    MO: '29',
+    MT: '30',
+    NE: '31',
+    NV: '32',
+    NH: '33',
+    NJ: '34',
+    NM: '35',
+    NY: '36',
+    NC: '37',
+    ND: '38',
+    OH: '39',
+    OK: '40',
+    OR: '41',
+    PA: '42',
+    RI: '44',
+    SC: '45',
+    SD: '46',
+    TN: '47',
+    TX: '48',
+    UT: '49',
+    VT: '50',
+    VA: '51',
+    WA: '53',
+    WV: '54',
+    WI: '55',
+    WY: '56',
+    PR: '72'
+};
+
 const CENSUS_TILE_DEGREES = 0.1;   // roughly 8 x 11 km
 const CENSUS_MAX_CONCURRENT_REQUESTS = 6;
 const CENSUS_MAX_PAGES_PER_TILE = 20;
@@ -137,14 +193,16 @@ async function ensureCensusGeometry(bboxes) {
 }
 
 // The outline of an incorporated place (city) as MultiPolygon coordinates,
-// e.g. fetchPlaceGeometry('16', 'Boise City').
-async function fetchPlaceGeometry(state, baseName) {
-    const key = state + '|' + baseName;
+// e.g. fetchPlaceGeometry('16', 'Boise').  The Census sometimes calls a city
+// "<name> City" (Boise is "Boise City"), so both spellings are accepted.
+async function fetchPlaceGeometry(state, name) {
+    const key = state + '|' + name;
     if (censusCache.places.has(key))
         return censusCache.places.get(key);
+    const quoted = name.replace(/'/g, "''");
     const params = new URLSearchParams({
-        where: "STATE='" + state + "' AND BASENAME='" + baseName.replace(/'/g, "''") + "'",
-        outFields: 'GEOID,NAME',
+        where: "STATE='" + state + "' AND BASENAME IN ('" + quoted + "', '" + quoted + " City')",
+        outFields: 'GEOID,NAME,BASENAME',
         outSR: '4326',
         maxAllowableOffset: '0.0001',
         f: 'geojson'
@@ -154,8 +212,10 @@ async function fetchPlaceGeometry(state, baseName) {
         throw new Error('Census city boundary request failed (' + response.status + ')');
     const json = await response.json();
     if (json.error || !json.features || !json.features.length)
-        throw new Error('Census has no city boundary named ' + baseName);
-    const multiPolygon = json.features.flatMap(f => toMultiPolygon(f.geometry));
+        throw new Error('Census has no city boundary named ' + name);
+    // prefer an exact name match over the "<name> City" spelling
+    const exact = json.features.filter(f => f.properties.BASENAME.toLowerCase() === name.toLowerCase());
+    const multiPolygon = (exact.length ? exact : json.features).flatMap(f => toMultiPolygon(f.geometry));
     censusCache.places.set(key, multiPolygon);
     return multiPolygon;
 }
