@@ -21,11 +21,16 @@ const CENSUS_DATASETS = [
 
 const TIGERWEB_BLOCK_GROUPS_URL = 'https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/11/query';
 const TIGERWEB_PLACES_URL = 'https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Places_CouSub_ConCity_SubMCD/MapServer/25/query';
-const CENSUS_BBOX_PADDING_DEGREES = 0.1;
+// Block groups are fetched one small tile at a time, and only for tiles that a
+// library's shape touches, so libraries in distant cities don't make us
+// download everything in between.
+const CENSUS_TILE_DEGREES = 0.1;   // roughly 8 x 11 km
+const CENSUS_MAX_CONCURRENT_REQUESTS = 6;
+const CENSUS_MAX_PAGES_PER_TILE = 20;
 
 const censusCache = {
     features: new Map(),   // GEOID -> GeoJSON feature
-    bbox: null,            // area for which features have been fetched
+    tiles: new Set(),      // "x,y" of tiles whose block groups have been fetched
     values: new Map(),     // "dataset|state|county" -> {GEOID: value}
     places: new Map()      // "state|name" -> MultiPolygon coordinates
 };
@@ -41,11 +46,6 @@ function bboxOfPaths(paths) {
         }
     }
     return bbox;
-}
-
-function bboxContains(outer, inner) {
-    return outer && outer.west <= inner.west && outer.east >= inner.east &&
-        outer.south <= inner.south && outer.north >= inner.north;
 }
 
 function bboxesIntersect(a, b) {
@@ -64,7 +64,9 @@ function geometryRings(geometry) {
 async function fetchBlockGroups(bbox) {
     const pageSize = 500;
     const features = [];
-    for (let offset = 0; ; offset += pageSize) {
+    for (let page = 0, offset = 0; ; page++, offset += pageSize) {
+        if (page >= CENSUS_MAX_PAGES_PER_TILE)
+            throw new Error('Census boundary request returned too many results');
         const params = new URLSearchParams({
             where: '1=1',
             geometry: [bbox.west, bbox.south, bbox.east, bbox.north].join(','),
@@ -91,23 +93,47 @@ async function fetchBlockGroups(bbox) {
     }
 }
 
-// Makes sure block groups covering `bbox` are in censusCache.
-async function ensureCensusGeometry(bbox) {
-    if (bboxContains(censusCache.bbox, bbox))
-        return;
-    // Fetch a generous area so small changes (like dragging a marker) don't refetch.
-    const padded = {
-        west: bbox.west - CENSUS_BBOX_PADDING_DEGREES,
-        east: bbox.east + CENSUS_BBOX_PADDING_DEGREES,
-        south: bbox.south - CENSUS_BBOX_PADDING_DEGREES,
-        north: bbox.north + CENSUS_BBOX_PADDING_DEGREES
+function tileBounds(x, y) {
+    return {
+        west: x * CENSUS_TILE_DEGREES,
+        east: (x + 1) * CENSUS_TILE_DEGREES,
+        south: y * CENSUS_TILE_DEGREES,
+        north: (y + 1) * CENSUS_TILE_DEGREES
     };
-    const features = await fetchBlockGroups(padded);
-    for (const feature of features) {
-        feature.bbox = bboxOfPaths([geometryRings(feature.geometry).flat().map(c => ({ lng: c[0], lat: c[1] }))]);
-        censusCache.features.set(feature.properties.GEOID, feature);
+}
+
+// Runs async `task(item)` for every item, `limit` at a time.
+async function forEachConcurrent(items, limit, task) {
+    let next = 0;
+    const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (next < items.length)
+            await task(items[next++]);
+    });
+    await Promise.all(workers);
+}
+
+// Makes sure the block groups covering each box in `bboxes` are in censusCache.
+async function ensureCensusGeometry(bboxes) {
+    const missing = new Map();
+    for (const bbox of bboxes) {
+        for (let x = Math.floor(bbox.west / CENSUS_TILE_DEGREES); x <= Math.floor(bbox.east / CENSUS_TILE_DEGREES); x++) {
+            for (let y = Math.floor(bbox.south / CENSUS_TILE_DEGREES); y <= Math.floor(bbox.north / CENSUS_TILE_DEGREES); y++) {
+                const key = x + ',' + y;
+                if (!censusCache.tiles.has(key))
+                    missing.set(key, [x, y]);
+            }
+        }
     }
-    censusCache.bbox = padded;
+    await forEachConcurrent([...missing], CENSUS_MAX_CONCURRENT_REQUESTS, async ([key, [x, y]]) => {
+        const features = await fetchBlockGroups(tileBounds(x, y));
+        for (const feature of features) {
+            if (censusCache.features.has(feature.properties.GEOID))
+                continue; // already fetched with a neighboring tile
+            feature.bbox = bboxOfPaths([geometryRings(feature.geometry).flat().map(c => ({ lng: c[0], lat: c[1] }))]);
+            censusCache.features.set(feature.properties.GEOID, feature);
+        }
+        censusCache.tiles.add(key);
+    });
 }
 
 // The outline of an incorporated place (city) as MultiPolygon coordinates,
@@ -243,16 +269,18 @@ function projectShape(path, origin) {
 async function estimateCensusValues(datasetId, paths, options = {}) {
     if (!paths.length)
         return [];
-    const bbox = bboxOfPaths(paths);
-    await ensureCensusGeometry(bbox);
+    const shapeBoxes = paths.map(path => bboxOfPaths([path]));
+    await ensureCensusGeometry(shapeBoxes);
     const place = options.place ? await fetchPlaceGeometry(options.place.state, options.place.name) : null;
 
-    const nearby = [...censusCache.features.values()].filter(f => bboxesIntersect(f.bbox, bbox));
+    // only block groups near a shape matter (and only their counties need values)
+    const nearby = [...censusCache.features.values()].filter(f => shapeBoxes.some(box => bboxesIntersect(f.bbox, box)));
     await ensureCensusValues(datasetId, nearby);
 
-    const origin = { lat: (bbox.north + bbox.south) / 2, lng: (bbox.east + bbox.west) / 2 };
-    return paths.map(path => {
-        const shapeBox = bboxOfPaths([path]);
+    return paths.map((path, index) => {
+        const shapeBox = shapeBoxes[index];
+        // project around this shape so libraries far apart aren't distorted
+        const origin = { lat: (shapeBox.north + shapeBox.south) / 2, lng: (shapeBox.east + shapeBox.west) / 2 };
         const shape = projectShape(path, origin);
         let region = null;
         if (place) {
