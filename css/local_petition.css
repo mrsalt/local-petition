@@ -307,6 +307,11 @@ div.lp-census-status.lp-loading::after {
     }
 }
 
+/* list entry of the library being hovered (here or on the map) */
+li.lp-hover {
+    color: #000;
+}
+
 button.lp-locality-left,
 button.lp-locality-right {
     padding-left: 10px;

@@ -15,6 +15,7 @@ const DEFAULT_RADIUS_MILES = 2.0;
 let currentRadiusMeters = DEFAULT_RADIUS_MILES * 1609.344;
 const PROPOSED_LIBRARY_COLOR = '#3B82F6';
 const PROPOSED_LIBRARIES_PARAM = 'libs';
+let hoveredEntry = undefined;
 
 function addSidebarRow(element, items, addRow = true) {
     const interactiveContainer = element.closest('div.interactive-map-container');
@@ -239,6 +240,14 @@ async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
             addProposedLibrary(element, latLng.lat(), latLng.lng(), name);
         };
         map.addListener('click', (e) => map.lpClickHandler(e.latLng));
+
+        // Hovering an area on the map highlights it and its list entry.  The
+        // shapes aren't clickable (so clicks reach the map), so we hit-test the
+        // mouse position ourselves.  The locality boundary layer swallows mouse
+        // events inside the city, so it forwards them here too.
+        map.lpHoverHandler = (latLng) => setHoveredEntry(entryAtLocation(latLng));
+        map.addListener('mousemove', (e) => map.lpHoverHandler(e.latLng));
+        map.addListener('mouseout', () => setHoveredEntry(undefined));
     }
 }
 
@@ -282,8 +291,87 @@ function updateBorders(map) {
             map: map,
             clickable: false
         });
+        applyHoverStyle(entry);
     });
     scheduleCensusUpdate(map);
+}
+
+// Hover highlighting ----------------------------------------------------------
+
+const HOVER_STROKE_WEIGHT = 4;
+const NORMAL_STROKE_WEIGHT = 2;
+
+// A darker version of a '#rgb' / '#rrggbb' color; other formats are returned as is.
+function darkenColor(color, factor = 0.6) {
+    const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color || '');
+    if (!match) return color;
+    let hex = match[1];
+    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+    const channels = [0, 2, 4].map(i => Math.round(parseInt(hex.substr(i, 2), 16) * factor));
+    return '#' + channels.map(c => c.toString(16).padStart(2, '0')).join('');
+}
+
+// Darkens and widens the border of the entry's circle/polygon while hovered,
+// and darkens its list entry.
+function applyHoverStyle(entry) {
+    const hovered = entry.hovered === true;
+    const style = {
+        strokeColor: hovered ? darkenColor(entry.info.radius_color) : entry.info.radius_color,
+        strokeWeight: hovered ? HOVER_STROKE_WEIGHT : NORMAL_STROKE_WEIGHT,
+        strokeOpacity: hovered ? 1 : 0.8
+    };
+    if (entry.radiusControl) entry.radiusControl.setOptions(style);
+    if (entry.borderPolygon) entry.borderPolygon.setOptions(style);
+    for (const li of entry.listItems || []) {
+        if (li.isConnected) li.classList.toggle('lp-hover', hovered);
+    }
+}
+
+function setHoveredEntry(entry) {
+    if (entry === hoveredEntry) return;
+    const previous = hoveredEntry;
+    hoveredEntry = entry;
+    if (previous) {
+        previous.hovered = false;
+        applyHoverStyle(previous);
+    }
+    if (entry) {
+        entry.hovered = true;
+        applyHoverStyle(entry);
+    }
+}
+
+function pointInPath(point, path) {
+    let inside = false;
+    for (let i = 0, j = path.length - 1; i < path.length; j = i++) {
+        const a = path[i];
+        const b = path[j];
+        if ((a.lat > point.lat) !== (b.lat > point.lat) &&
+            point.lng < (b.lng - a.lng) * (point.lat - a.lat) / (b.lat - a.lat) + a.lng) {
+            inside = !inside;
+        }
+    }
+    return inside;
+}
+
+// The library whose circle/polygon contains the location.  Where circles overlap,
+// the one with the nearest center wins.
+function entryAtLocation(latLng) {
+    const point = { lat: latLng.lat(), lng: latLng.lng() };
+    let best = undefined;
+    let bestDistance = Infinity;
+    for (const entry of allMarkers) {
+        if (!entry.radiusControl || entry.deleted || !(entry.info.radius > 0)) continue;
+        const center = { lat: parseFloat(entry.info.latitude), lng: parseFloat(entry.info.longitude) };
+        const offset = project(center, point);
+        const distance = Math.hypot(offset.x, offset.y);
+        const inside = entry.shapePath ? pointInPath(point, entry.shapePath) : distance <= entry.info.radius;
+        if (inside && distance < bestDistance) {
+            best = entry;
+            bestDistance = distance;
+        }
+    }
+    return best;
 }
 
 // Census data ---------------------------------------------------------------
@@ -494,12 +582,12 @@ function updateMarkerListForLocality(localityId, markerListEl = undefined) {
             // Another option would be to set locality to null for the other items that
             // share the same locality id.
             if ("#D47BAC" === m.info.radius_color) {
-                addToMarkerList(m.info.name, markerListEl, formatCensusValue(m));
+                addToMarkerList(m.info.name, markerListEl, formatCensusValue(m), m);
                 listed.add(m);
             }
         }
         for (const m of proposed) {
-            addToMarkerList((m.info.name || 'Unnamed library') + ' (proposed)', markerListEl, formatCensusValue(m));
+            addToMarkerList((m.info.name || 'Unnamed library') + ' (proposed)', markerListEl, formatCensusValue(m), m);
             listed.add(m);
         }
     } else {
@@ -522,7 +610,7 @@ function updateOtherMarkerList(listed, localityId) {
         if (!m.radiusControl || m.deleted || listed.has(m)) continue;
         if (!entryInLocality(m, localityId)) continue;
         const name = (m.info.name || 'Unnamed library') + (m.info.temporary ? ' (proposed)' : '');
-        addToMarkerList(name, otherListEl, formatCensusValue(m));
+        addToMarkerList(name, otherListEl, formatCensusValue(m), m);
         count++;
     }
     // hide the heading and list when empty
@@ -560,6 +648,9 @@ async function highlightArea(map, type, locality) {
         if (featureLayer.isAvailable) {
             if (map.lpClickHandler && !featureLayer.lpClickListener) {
                 featureLayer.lpClickListener = featureLayer.addListener('click', (e) => map.lpClickHandler(e.latLng));
+            }
+            if (map.lpHoverHandler && !featureLayer.lpHoverListener) {
+                featureLayer.lpHoverListener = featureLayer.addListener('mousemove', (e) => map.lpHoverHandler(e.latLng));
             }
             styleBoundary(place.id, featureLayer, locality['color']);
         } else
@@ -977,6 +1068,9 @@ async function addMapMarker(element, info) {
             clickable: false
         });
         allMarkers[allMarkers.length - 1]['radiusControl'] = radiusControl;
+        // hovering the library's icon highlights its area too
+        marker.addListener('mouseover', () => setHoveredEntry(markerEntry));
+        marker.addListener('mouseout', () => setHoveredEntry(undefined));
 
         // radius unit is meters
         function buildInfoContent() {
@@ -1060,7 +1154,7 @@ function updateLocalityButtons() {
     localityRightButton.style.display = hideArrows ? 'none' : '';
 }
 
-function addToMarkerList(markerName, markerListEl = undefined, detail = '') {
+function addToMarkerList(markerName, markerListEl = undefined, detail = '', entry = undefined) {
     if (!markerListEl) {
         markerListEl = document.querySelector('.lp-locality-marker-list');
         if (!markerListEl) return;
@@ -1076,6 +1170,14 @@ function addToMarkerList(markerName, markerListEl = undefined, detail = '') {
         detailEl.classList.add('lp-marker-detail');
         detailEl.textContent = detail;
         li.appendChild(detailEl);
+    }
+    if (entry) {
+        // hovering the list entry highlights the library's area on the map
+        entry.listItems = (entry.listItems || []).filter(item => item.isConnected);
+        entry.listItems.push(li);
+        li.addEventListener('mouseenter', () => setHoveredEntry(entry));
+        li.addEventListener('mouseleave', () => setHoveredEntry(undefined));
+        li.classList.toggle('lp-hover', entry.hovered === true);
     }
     markerListEl.appendChild(li);
 }
