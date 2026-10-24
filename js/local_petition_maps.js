@@ -473,18 +473,21 @@ function updateMarkerListForLocality(localityId, markerListEl = undefined) {
         li.textContent = 'None';
         markerListEl.appendChild(li);
     }
-    updateOtherMarkerList(listed);
+    updateOtherMarkerList(listed, localityId);
 }
 
-// Lists every library on the map that isn't in the locality list above, so
-// each library with a census value is visible somewhere.
-function updateOtherMarkerList(listed) {
+// Lists the other libraries of the current locality that aren't in the
+// locality list above.  Libraries that belong to a different locality are left out.
+function updateOtherMarkerList(listed, localityId) {
     const otherListEl = document.querySelector('.lp-other-marker-list');
     if (!otherListEl) return;
     otherListEl.innerHTML = '';
     let count = 0;
     for (const m of allMarkers) {
         if (!m.radiusControl || m.deleted || listed.has(m)) continue;
+        // proposed libraries have no locality_id; they belong to the nearest locality
+        const markerLocalityId = m.info.temporary ? nearestLocalityId(m.info) : m.info.locality_id;
+        if (markerLocalityId && markerLocalityId !== localityId) continue;
         const name = (m.info.name || 'Unnamed library') + (m.info.temporary ? ' (proposed)' : '');
         addToMarkerList(name, otherListEl, formatCensusValue(m));
         count++;
