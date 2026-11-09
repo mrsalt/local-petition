@@ -119,3 +119,11 @@ function lp_enqueue_assets()
 	wp_enqueue_script('pdf_ios_fallback', plugins_url('js/pdf-ios-fallback.js', __FILE__), array(), LOCAL_PETITION_VERSION);
 }
 add_action('wp_enqueue_scripts', 'lp_enqueue_assets');
+
+function lp_enqueue_admin_assets()
+{
+	wp_enqueue_style('local_petition_style', plugins_url('css/local_petition.css', __FILE__), false, LOCAL_PETITION_VERSION);
+	wp_enqueue_script('jscookie', plugins_url('js/js.cookie.min.js', __FILE__), array(), '3.0.5');
+	wp_enqueue_script('local_petition_js', plugins_url('js/local_petition.js', __FILE__), array('jscookie'), LOCAL_PETITION_VERSION);
+}
+add_action('admin_enqueue_scripts', 'lp_enqueue_admin_assets');
