@@ -248,7 +248,103 @@ async function initMap(element, position, zoom, mapId, mapTypeId, locality) {
         map.lpHoverHandler = (latLng) => setHoveredEntry(entryAtLocation(latLng));
         map.addListener('mousemove', (e) => map.lpHoverHandler(e.latLng));
         map.addListener('mouseout', () => setHoveredEntry(undefined));
+
+        addAdvancedPanel(element, map);
     }
+}
+
+const METERS_PER_FOOT = 0.3048;
+const EQUATOR_METERS_PER_PIXEL_AT_ZOOM_0 = 156543.03392;
+
+function feetPerPixel(map) {
+    const lat = map.getCenter().lat();
+    return EQUATOR_METERS_PER_PIXEL_AT_ZOOM_0 * Math.cos(lat * Math.PI / 180) /
+        Math.pow(2, map.getZoom()) / METERS_PER_FOOT;
+}
+
+function zoomForFeetPerPixel(map, feet) {
+    const lat = map.getCenter().lat();
+    return Math.log2(EQUATOR_METERS_PER_PIXEL_AT_ZOOM_0 * Math.cos(lat * Math.PI / 180) /
+        (feet * METERS_PER_FOOT));
+}
+
+// Hidden panel toggled with Ctrl+Home: set the exact map scale and choose
+// which libraries are shown (hiding one hides its marker and radius area).
+function addAdvancedPanel(element, map) {
+    const panel = document.createElement('div');
+    panel.classList.add('lp-advanced-panel');
+    panel.style.display = 'none';
+
+    const scaleLabel = document.createElement('label');
+    scaleLabel.textContent = 'Scale (feet per pixel) ';
+    const scaleInput = document.createElement('input');
+    scaleInput.type = 'number';
+    scaleInput.min = '0.01';
+    scaleInput.step = 'any';
+    scaleLabel.appendChild(scaleInput);
+    const scaleNote = document.createElement('div');
+    scaleNote.textContent = 'Press Enter to apply. Non-integer scales need a vector map.';
+    scaleNote.style.fontSize = '0.8em';
+
+    const list = document.createElement('div');
+    list.classList.add('lp-advanced-library-list');
+
+    panel.append(scaleLabel, scaleNote, list);
+    addSidebarRow(element, [panel]);
+
+    const refreshScale = () => {
+        if (document.activeElement !== scaleInput) {
+            scaleInput.value = feetPerPixel(map).toFixed(4);
+        }
+    };
+    const applyScale = () => {
+        const feet = parseFloat(scaleInput.value);
+        if (!(feet > 0)) return;
+        map.setZoom(zoomForFeetPerPixel(map, feet));
+    };
+    scaleInput.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') applyScale();
+    });
+    scaleInput.addEventListener('change', applyScale);
+    map.addListener('zoom_changed', refreshScale);
+
+    const refreshLibraries = () => {
+        list.textContent = '';
+        for (const entry of allMarkers) {
+            if (entry.deleted || !entry.marker) continue;
+            const id = 'lp-lib-visible-' + Math.random().toString(36).slice(2);
+            const row = document.createElement('div');
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.id = id;
+            cb.checked = !entry.hidden;
+            cb.addEventListener('change', () => {
+                entry.hidden = !cb.checked;
+                entry.marker.setMap(entry.hidden ? null : map);
+                if (entry.radiusControl) entry.radiusControl.setMap(entry.hidden ? null : map);
+                if (entry.hidden && hoveredEntry === entry) setHoveredEntry(undefined);
+                updateBorders(map);
+            });
+            const lbl = document.createElement('label');
+            lbl.htmlFor = id;
+            lbl.textContent = entry.info.name || '(unnamed)';
+            row.append(cb, lbl);
+            list.appendChild(row);
+        }
+    };
+
+    document.addEventListener('keydown', (e) => {
+        if (!(e.ctrlKey && e.key === 'Home')) return;
+        e.preventDefault();
+        const show = panel.style.display === 'none';
+        panel.style.display = show ? '' : 'none';
+        if (show) {
+            scaleInput.blur();
+            refreshScale();
+            refreshLibraries();
+        }
+    });
 }
 
 // When "Borders Overlap" is unchecked, replace the radius circles with
@@ -264,14 +360,14 @@ function updateBorders(map) {
         }
         entry.shapePath = undefined;
         if (entry.radiusControl && !entry.deleted)
-            entry.radiusControl.setVisible(true);
+            entry.radiusControl.setVisible(!entry.hidden);
     }
     if (overlap) {
         scheduleCensusUpdate(map);
         return;
     }
 
-    const entries = allMarkers.filter(e => e.radiusControl && !e.deleted && e.info.radius > 0);
+    const entries = allMarkers.filter(e => e.radiusControl && !e.deleted && !e.hidden && e.info.radius > 0);
     const circles = entries.map(e => ({
         latlng: { lat: parseFloat(e.info.latitude), lng: parseFloat(e.info.longitude) },
         radius: parseFloat(e.info.radius)
@@ -361,7 +457,7 @@ function entryAtLocation(latLng) {
     let best = undefined;
     let bestDistance = Infinity;
     for (const entry of allMarkers) {
-        if (!entry.radiusControl || entry.deleted || !(entry.info.radius > 0)) continue;
+        if (!entry.radiusControl || entry.deleted || entry.hidden || !(entry.info.radius > 0)) continue;
         const center = { lat: parseFloat(entry.info.latitude), lng: parseFloat(entry.info.longitude) };
         const offset = project(center, point);
         const distance = Math.hypot(offset.x, offset.y);
@@ -434,7 +530,7 @@ async function updateCensus(map) {
 
     // Only libraries in the locality being viewed are measured; the other
     // localities' libraries aren't worth the download until someone visits them.
-    const entries = show ? allMarkers.filter(e => e.radiusControl && !e.deleted && e.info.radius > 0 &&
+    const entries = show ? allMarkers.filter(e => e.radiusControl && !e.deleted && !e.hidden && e.info.radius > 0 &&
         (!locality || entryInLocality(e, locality.id))) : [];
     for (const entry of allMarkers) {
         if (!entries.includes(entry)) entry.censusValue = undefined;
