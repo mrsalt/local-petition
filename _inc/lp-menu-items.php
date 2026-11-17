@@ -2,38 +2,57 @@
 
 require_once('lp-signers-admin.php');
 require_once('lp-review-messages-admin.php');
+require_once('lp-attendance-admin.php');
 
 function lp_admin_menu()
 {
     if (!is_user_logged_in()) {
         return;
     }
+    // The top-level menu shares its slug with Route Map because that is the one
+    // item every logged-in user can access ('read'); the other items are
+    // capability-gated submenus. Page slugs are unchanged, so existing
+    // admin.php?page=... links keep working.
     add_menu_page(
-        __('Review Signers', 'textdomain'),
-        'Review Signers',
-        'moderate_comments',
-        'lp-review-signers',
-        'lp_review_signers',
-        '', //plugins_url( 'myplugin/images/icon.png' ),
+        __('Local Petition', 'textdomain'),
+        'Local Petition',
+        'read',
+        'lp-route-map',
+        'lp_route_map_redirect',
+        'dashicons-clipboard',
         null //6
     );
-    add_menu_page(
+    add_submenu_page(
+        'lp-route-map',
         __('Route Map', 'textdomain'),
         'Route Map',
         'read',
         'lp-route-map',
-        'lp_route_map_redirect',
-        plugins_url('local-petition/images/map-icon-28x22.png'),
-        null //6
+        'lp_route_map_redirect'
     );
-    add_menu_page(
+    add_submenu_page(
+        'lp-route-map',
+        __('Review Signers', 'textdomain'),
+        'Review Signers',
+        'moderate_comments',
+        'lp-review-signers',
+        'lp_review_signers'
+    );
+    add_submenu_page(
+        'lp-route-map',
         __('Review Messages', 'textdomain'),
         'Review Messages',
         'moderate_comments',
         'lp-review-messages',
-        'lp_review_messages',
-        plugins_url('local-petition/images/mail-25x25.png'),
-        null //6
+        'lp_review_messages'
+    );
+    add_submenu_page(
+        'lp-route-map',
+        __('Attendance', 'textdomain'),
+        'Attendance',
+        'moderate_comments',
+        'lp-attendance',
+        'lp_attendance'
     );
 }
 
