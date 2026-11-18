@@ -48,12 +48,25 @@ function lp_admin_menu()
     );
     add_submenu_page(
         'lp-route-map',
-        __('Attendance', 'textdomain'),
-        'Attendance',
+        __('Meeting Attendance', 'textdomain'),
+        'Meeting Attendance',
         'moderate_comments',
         'lp-attendance',
         'lp_attendance'
     );
+
+    // Move Meeting Attendance to the top of the submenu. It is registered last
+    // because add_submenu_page() would otherwise auto-insert the parent entry first.
+    global $submenu;
+    if (isset($submenu['lp-route-map'])) {
+        foreach ($submenu['lp-route-map'] as $i => $item) {
+            if ($item[2] === 'lp-attendance') {
+                unset($submenu['lp-route-map'][$i]);
+                array_unshift($submenu['lp-route-map'], $item);
+                break;
+            }
+        }
+    }
 }
 
 function lp_admin_bar_menu(WP_Admin_Bar $admin_bar)

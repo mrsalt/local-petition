@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.53';
+$lp_db_version = '1.54';
 
 function lp_db_install()
 {
@@ -206,6 +206,18 @@ function lp_db_install()
 		$table_name = $wpdb->prefix . 'lp_marker';
 		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT marker_locality_fk FOREIGN KEY (locality_id) REFERENCES $locality_table_name(id)");
 	}
+
+	$table_name = $wpdb->prefix . 'lp_attendance';
+	$sql = "CREATE TABLE $table_name (
+		id mediumint(9) NOT NULL AUTO_INCREMENT,
+		created timestamp DEFAULT CURRENT_TIMESTAMP,
+		event_id bigint(20) unsigned NOT NULL,
+		signer_id mediumint(9) NOT NULL,
+		recorded_by bigint(20) unsigned NULL,
+		PRIMARY KEY  (id),
+		UNIQUE KEY event_signer (event_id, signer_id)
+	) $charset_collate;";
+	dbDelta($sql);
 
 	error_log('Notice: updating lp_db_version to ' . $lp_db_version);
 	if (!isset($installed_ver))
