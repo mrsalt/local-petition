@@ -13,6 +13,8 @@
     const saveBtn = $('lp-attendance-save');
     const removeBtn = $('lp-attendance-remove');
     const statusEl = $('lp-attendance-status');
+    const scrollBox = $('lp-attendance-scroll');
+    const actions = $('lp-attendance-actions');
     if (!input) return;
 
     const MAX_SHOWN = 10;
@@ -215,7 +217,17 @@
         });
         countEl.textContent = attendees.length;
         updateButtons();
+        fitList();
     }
+
+    // Keep the list at least 200px tall, but no taller than leaves the buttons
+    // below it on screen (measured from where the list sits on the page).
+    function fitList() {
+        const top = scrollBox.getBoundingClientRect().top + window.scrollY;
+        const below = actions.offsetHeight + 60; // buttons + footer breathing room
+        scrollBox.style.maxHeight = Math.max(200, window.innerHeight - top - below) + 'px';
+    }
+    window.addEventListener('resize', fitList);
 
     saveBtn.addEventListener('click', () => {
         const ids = attendees.map(a => a.id);

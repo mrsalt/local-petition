@@ -210,7 +210,9 @@ function lp_attendance()
             #lp-attendance-candidates li { margin: 0; padding: 6px 10px; cursor: pointer; }
             #lp-attendance-candidates li.active, #lp-attendance-candidates li[role=option]:hover { background: #2271b1; color: #fff; }
             #lp-attendance-candidates li.more { color: #646970; cursor: default; font-style: italic; }
-            #lp-attendance-list { margin: 0 0 1em; }
+            #lp-attendance-scroll { min-height: 200px; overflow-y: auto; border: 1px solid #c3c4c7; margin-bottom: 1em; background: #fff; }
+            #lp-attendance-list { border: 0; }
+            #lp-attendance-list thead th { position: sticky; top: 0; z-index: 1; background: #f6f7f7; box-shadow: 0 1px 0 #c3c4c7; }
             #lp-attendance-list td, #lp-attendance-list th { text-align: left; vertical-align: top; }
             #lp-attendance-list .check-column { width: 2em; }
             #lp-attendance-list .unsaved { color: #996800; font-style: italic; }
@@ -229,11 +231,13 @@ function lp_attendance()
             <ul id="lp-attendance-candidates" role="listbox"></ul>
         </div>
         <h2>Attending (<span id="lp-attendance-count">0</span>)</h2>
-        <table id="lp-attendance-list" class="widefat striped">
-            <thead><tr><th class="check-column"></th><th>Name</th><th>Address</th><th>Email</th><th>Phone</th></tr></thead>
-            <tbody></tbody>
-        </table>
-        <p>
+        <div id="lp-attendance-scroll">
+            <table id="lp-attendance-list" class="widefat striped">
+                <thead><tr><th class="check-column"></th><th>Name</th><th>Address</th><th>Email</th><th>Phone</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <p id="lp-attendance-actions">
             <button type="button" class="button button-primary" id="lp-attendance-save">Save</button>
             <button type="button" class="button" id="lp-attendance-remove" disabled>Remove</button>
             <span id="lp-attendance-status" role="status" aria-live="polite"></span>
