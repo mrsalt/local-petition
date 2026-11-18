@@ -2,9 +2,27 @@
 
 // Events Calendar plugin: events are posts of type 'tribe_events', start date
 // stored in the '_EventStartDate' meta ('Y-m-d H:i:s'). Meetings are the events
-// carrying the 'meeting' tag.
+// carrying the 'meeting' term, either as an Event Category (tribe_events_cat,
+// what the Events Calendar editor offers) or as a regular post tag.
 const LP_MEETING_EVENT_POST_TYPE = 'tribe_events';
 const LP_MEETING_TAG = 'meeting';
+const LP_MEETING_TAXONOMIES = ['tribe_events_cat', 'post_tag'];
+
+/** IDs of the 'meeting' term in each taxonomy that has one, keyed by taxonomy. */
+function lp_attendance_meeting_terms()
+{
+    $terms = [];
+    foreach (LP_MEETING_TAXONOMIES as $taxonomy) {
+        if (!taxonomy_exists($taxonomy)) {
+            continue;
+        }
+        $term = get_term_by('slug', LP_MEETING_TAG, $taxonomy) ?: get_term_by('name', LP_MEETING_TAG, $taxonomy);
+        if ($term) {
+            $terms[$taxonomy] = $term->term_id;
+        }
+    }
+    return $terms;
+}
 
 function lp_attendance_candidates()
 {
@@ -26,15 +44,23 @@ function lp_attendance_candidates()
 /** Meeting events, most recent first. */
 function lp_attendance_events()
 {
+    $tax_query = ['relation' => 'OR'];
+    foreach (lp_attendance_meeting_terms() as $taxonomy => $term_id) {
+        $tax_query[] = ['taxonomy' => $taxonomy, 'field' => 'term_id', 'terms' => [$term_id]];
+    }
+    if (count($tax_query) === 1) {
+        return [];
+    }
     $query = new WP_Query([
         'post_type' => LP_MEETING_EVENT_POST_TYPE,
-        'tag' => LP_MEETING_TAG,
-        'post_status' => 'publish',
+        'tax_query' => $tax_query,
+        'post_status' => ['publish', 'future'],
         'posts_per_page' => -1,
         'meta_key' => '_EventStartDate',
         'orderby' => 'meta_value',
         'order' => 'DESC',
         'no_found_rows' => true,
+        'suppress_filters' => true, // keep The Events Calendar from restricting the query (e.g. to upcoming events)
     ]);
     $events = [];
     foreach ($query->posts as $post) {
@@ -60,9 +86,10 @@ function lp_enqueue_attendance_assets()
         return;
     }
     wp_enqueue_script('lp_attendance', plugins_url('js/lp-attendance.js', dirname(__FILE__)), array(), LOCAL_PETITION_VERSION, true);
+    $events = lp_attendance_events();
     wp_localize_script('lp_attendance', 'lpAttendance', array(
         'candidates' => lp_attendance_candidates(),
-        'events' => lp_attendance_events(),
+        'events' => $events,
         'currentYear' => (int) wp_date('Y'),
         'today' => wp_date('Y-m-d'),
         'ajaxUrl' => admin_url('admin-ajax.php'),
