@@ -6,7 +6,7 @@
     const input = $('lp-attendance-name');
     const combo = $('lp-attendance-combo');
     const candidateList = $('lp-attendance-candidates');
-    const attendeeList = $('lp-attendance-list');
+    const attendeeList = $('lp-attendance-list').tBodies[0];
     const countEl = $('lp-attendance-count');
     const yearSelect = $('lp-attendance-year');
     const eventSelect = $('lp-attendance-event');
@@ -16,7 +16,7 @@
     if (!input) return;
 
     const MAX_SHOWN = 10;
-    let attendees = []; // {id, name, city, saved, checked}, in order added
+    let attendees = []; // {id, name, city, address, email, phone, saved, checked}, sorted by name
     let shown = [];     // candidates currently listed
     let active = -1;    // index into shown highlighted by arrow keys
     let loadToken = 0;  // discards out-of-date attendee loads
@@ -181,24 +181,37 @@
         saveBtn.disabled = !currentEventId();
     }
 
+    const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+
     function renderAttendees() {
+        attendees.sort(byName);
         attendeeList.replaceChildren();
         attendees.forEach(a => {
-            const li = document.createElement('li');
-            const lbl = document.createElement('label');
+            const tr = document.createElement('tr');
+            const checkCell = document.createElement('td');
+            checkCell.className = 'check-column';
             const box = document.createElement('input');
             box.type = 'checkbox';
             box.checked = a.checked;
+            box.setAttribute('aria-label', 'Select ' + a.name);
             box.addEventListener('change', () => { a.checked = box.checked; updateButtons(); });
-            lbl.append(box, ' ' + label(a));
+            checkCell.appendChild(box);
+            const nameCell = document.createElement('td');
+            nameCell.textContent = a.name;
             if (!a.saved) {
                 const tag = document.createElement('span');
                 tag.className = 'unsaved';
                 tag.textContent = ' (not saved)';
-                lbl.appendChild(tag);
+                nameCell.appendChild(tag);
             }
-            li.appendChild(lbl);
-            attendeeList.appendChild(li);
+            tr.appendChild(checkCell);
+            tr.appendChild(nameCell);
+            [a.address, a.email, a.phone].forEach(text => {
+                const td = document.createElement('td');
+                td.textContent = text || '';
+                tr.appendChild(td);
+            });
+            attendeeList.appendChild(tr);
         });
         countEl.textContent = attendees.length;
         updateButtons();

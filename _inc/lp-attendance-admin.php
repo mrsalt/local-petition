@@ -24,21 +24,34 @@ function lp_attendance_meeting_terms()
     return $terms;
 }
 
+/** Shapes a signer/address row for the attendance page. */
+function lp_attendance_signer_row($row)
+{
+    $street = trim($row['line_1'] . ' ' . $row['line_2']);
+    $locality = trim($row['city'] . ($row['state'] ? ', ' . $row['state'] : '') . ' ' . $row['zip']);
+    return [
+        'id' => (int) $row['id'],
+        'name' => $row['name'],
+        'city' => $row['city'],
+        'address' => implode(', ', array_filter([$street, $locality])),
+        'email' => $row['email'],
+        'phone' => $row['phone'],
+    ];
+}
+
 function lp_attendance_candidates()
 {
     global $wpdb;
     $signer_table = $wpdb->prefix . 'lp_signer';
     $address_table = $wpdb->prefix . 'lp_address';
     $rows = $wpdb->get_results(
-        "SELECT signer.id, signer.name, address.city
+        "SELECT signer.id, signer.name, signer.email, signer.phone, address.line_1, address.line_2, address.city, address.state, address.zip
          FROM `$signer_table` signer
          LEFT JOIN `$address_table` address ON address.id = signer.address_id
          ORDER BY signer.name",
         ARRAY_A
     );
-    return array_map(function ($row) {
-        return ['id' => (int) $row['id'], 'name' => $row['name'], 'city' => $row['city']];
-    }, $rows ?: []);
+    return array_map('lp_attendance_signer_row', $rows ?: []);
 }
 
 /** Meeting events, most recent first. */
@@ -123,17 +136,15 @@ function lp_attendance_get_handler()
     $signer_table = $wpdb->prefix . 'lp_signer';
     $address_table = $wpdb->prefix . 'lp_address';
     $rows = $wpdb->get_results($wpdb->prepare(
-        "SELECT signer.id, signer.name, address.city
+        "SELECT signer.id, signer.name, signer.email, signer.phone, address.line_1, address.line_2, address.city, address.state, address.zip
          FROM `$attendance_table` attendance
          JOIN `$signer_table` signer ON signer.id = attendance.signer_id
          LEFT JOIN `$address_table` address ON address.id = signer.address_id
          WHERE attendance.event_id = %d
-         ORDER BY attendance.id",
+         ORDER BY signer.name",
         $event_id
     ), ARRAY_A);
-    wp_send_json_success(array_map(function ($row) {
-        return ['id' => (int) $row['id'], 'name' => $row['name'], 'city' => $row['city']];
-    }, $rows ?: []));
+    wp_send_json_success(array_map('lp_attendance_signer_row', $rows ?: []));
 }
 
 function lp_attendance_save_handler()
@@ -199,8 +210,9 @@ function lp_attendance()
             #lp-attendance-candidates li { margin: 0; padding: 6px 10px; cursor: pointer; }
             #lp-attendance-candidates li.active, #lp-attendance-candidates li[role=option]:hover { background: #2271b1; color: #fff; }
             #lp-attendance-candidates li.more { color: #646970; cursor: default; font-style: italic; }
-            #lp-attendance-list { list-style: none; margin: 0 0 1em; padding: 0; }
-            #lp-attendance-list li { margin: 0 0 4px; }
+            #lp-attendance-list { margin: 0 0 1em; }
+            #lp-attendance-list td, #lp-attendance-list th { text-align: left; vertical-align: top; }
+            #lp-attendance-list .check-column { width: 2em; }
             #lp-attendance-list .unsaved { color: #996800; font-style: italic; }
             #lp-attendance-status { margin-left: 1em; }
         </style>
@@ -217,7 +229,10 @@ function lp_attendance()
             <ul id="lp-attendance-candidates" role="listbox"></ul>
         </div>
         <h2>Attending (<span id="lp-attendance-count">0</span>)</h2>
-        <ul id="lp-attendance-list"></ul>
+        <table id="lp-attendance-list" class="widefat striped">
+            <thead><tr><th class="check-column"></th><th>Name</th><th>Address</th><th>Email</th><th>Phone</th></tr></thead>
+            <tbody></tbody>
+        </table>
         <p>
             <button type="button" class="button button-primary" id="lp-attendance-save">Save</button>
             <button type="button" class="button" id="lp-attendance-remove" disabled>Remove</button>
