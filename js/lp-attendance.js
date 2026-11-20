@@ -18,12 +18,16 @@
     if (!input) return;
 
     const MAX_SHOWN = 10;
-    let attendees = []; // {id, name, city, address, email, phone, saved, checked}, sorted by name
+    let attendees = []; // {kind, id, name, city, address, email, phone, saved, checked}, sorted by name
+    // kind is 'signer' (CFAL member) or 'person' (non-CFAL member); ids are only unique within a kind.
     let shown = [];     // candidates currently listed
     let active = -1;    // index into shown highlighted by arrow keys
     let loadToken = 0;  // discards out-of-date attendee loads
 
-    const label = c => c.city ? `${c.name} (${c.city})` : c.name;
+    const key = c => `${c.kind}:${c.id}`;
+    const displayName = c => c.kind === 'person' ? c.name + '*' : c.name;
+    const label = c => c.city ? `${displayName(c)} (${c.city})` : displayName(c);
+    const idsOfKind = (list, kind) => list.filter(a => a.kind === kind).map(a => a.id);
     const currentEventId = () => parseInt(eventSelect.value, 10) || 0;
     const hasUnsaved = () => attendees.some(a => !a.saved);
 
@@ -33,8 +37,9 @@
     }
 
     function post(action, data) {
-        const body = new URLSearchParams({ action, nonce: cfg.nonce, event_id: currentEventId() });
+        const body = new URLSearchParams({ action, nonce: cfg.nonce, event_id: currentEventId(), ...(data.fields || {}) });
         (data.signer_ids || []).forEach(id => body.append('signer_ids[]', id));
+        (data.person_ids || []).forEach(id => body.append('person_ids[]', id));
         return fetch(cfg.ajaxUrl, { method: 'POST', credentials: 'same-origin', body })
             .then(r => r.json())
             .then(j => {
@@ -113,40 +118,50 @@
 
     // ---- Autocomplete -----------------------------------------------------------
 
+    const queryText = () => input.value.trim().toLowerCase();
+    const nameMatches = c => c.name.toLowerCase().includes(queryText());
+
     function matches() {
-        const q = input.value.trim().toLowerCase();
-        if (!q) return [];
-        const present = new Set(attendees.map(a => a.id));
-        return candidates.filter(c => !present.has(c.id) && c.name.toLowerCase().includes(q));
+        if (!queryText()) return [];
+        const present = new Set(attendees.map(key));
+        return candidates.filter(c => !present.has(key(c)) && nameMatches(c));
     }
 
     function renderCandidates() {
         const found = matches();
-        shown = found.slice(0, MAX_SHOWN);
+        // Nobody at all (attending or not) matches: offer to add a non-CFAL member.
+        const offerNew = queryText() && !candidates.some(nameMatches) && !attendees.some(nameMatches);
+        shown = offerNew ? [{ kind: 'new' }] : found.slice(0, MAX_SHOWN);
         if (active >= shown.length) active = shown.length - 1;
         candidateList.replaceChildren();
         shown.forEach((c, i) => {
             const li = document.createElement('li');
             li.setAttribute('role', 'option');
-            li.textContent = label(c);
-            if (i === active) li.className = 'active';
+            if (c.kind === 'new') {
+                li.className = 'add-person';
+                li.textContent = `No match. Add “${input.value.trim()}” as a non-CFAL member…`;
+            } else {
+                li.textContent = label(c);
+            }
+            if (i === active) li.classList.add('active');
             // mousedown (not click) so the input keeps focus
             li.addEventListener('mousedown', e => { e.preventDefault(); add(c); });
             candidateList.appendChild(li);
         });
-        if (found.length > MAX_SHOWN) {
+        if (!offerNew && found.length > MAX_SHOWN) {
             const li = document.createElement('li');
             li.className = 'more';
             li.textContent = `…and ${found.length - MAX_SHOWN} more`;
             candidateList.appendChild(li);
         }
-        const open = found.length > 0;
+        const open = shown.length > 0;
         combo.classList.toggle('open', open);
         input.setAttribute('aria-expanded', open);
     }
 
     function add(c) {
         if (!currentEventId()) { setStatus('Select a meeting first.', true); return; }
+        if (c.kind === 'new') { openPersonDialog(input.value.trim()); return; }
         attendees.push({ ...c, saved: false, checked: false });
         input.value = '';
         active = -1;
@@ -195,11 +210,11 @@
             const box = document.createElement('input');
             box.type = 'checkbox';
             box.checked = a.checked;
-            box.setAttribute('aria-label', 'Select ' + a.name);
+            box.setAttribute('aria-label', 'Select ' + displayName(a));
             box.addEventListener('change', () => { a.checked = box.checked; updateButtons(); });
             checkCell.appendChild(box);
             const nameCell = document.createElement('td');
-            nameCell.textContent = a.name;
+            nameCell.textContent = displayName(a);
             if (!a.saved) {
                 const tag = document.createElement('span');
                 tag.className = 'unsaved';
@@ -230,26 +245,29 @@
     window.addEventListener('resize', fitList);
 
     saveBtn.addEventListener('click', () => {
-        const ids = attendees.map(a => a.id);
-        if (!ids.length) { setStatus('Nobody to save.', true); return; }
+        if (!attendees.length) { setStatus('Nobody to save.', true); return; }
+        const count = attendees.length;
+        const savedKeys = new Set(attendees.map(key));
         const token = loadToken;
         saveBtn.disabled = true;
         setStatus('Saving…');
-        post('lp_attendance_save', { signer_ids: ids }).then(() => {
+        post('lp_attendance_save', { signer_ids: idsOfKind(attendees, 'signer'), person_ids: idsOfKind(attendees, 'person') }).then(() => {
             if (token !== loadToken) return;
-            attendees.forEach(a => { if (ids.includes(a.id)) a.saved = true; });
+            attendees.forEach(a => { if (savedKeys.has(key(a))) a.saved = true; });
             renderAttendees();
-            setStatus(`Saved ${ids.length} attendee${ids.length === 1 ? '' : 's'}.`);
+            setStatus(`Saved ${count} attendee${count === 1 ? '' : 's'}.`);
         }).catch(err => { setStatus('Save failed: ' + err.message, true); updateButtons(); });
     });
 
     removeBtn.addEventListener('click', () => {
         const checked = attendees.filter(a => a.checked);
         if (!checked.length) return;
-        const savedIds = checked.filter(a => a.saved).map(a => a.id);
+        const saved = checked.filter(a => a.saved);
         const token = loadToken;
         removeBtn.disabled = true;
-        const done = savedIds.length ? post('lp_attendance_remove', { signer_ids: savedIds }) : Promise.resolve();
+        const done = saved.length
+            ? post('lp_attendance_remove', { signer_ids: idsOfKind(saved, 'signer'), person_ids: idsOfKind(saved, 'person') })
+            : Promise.resolve();
         done.then(() => {
             if (token !== loadToken) return;
             attendees = attendees.filter(a => !a.checked);
@@ -257,6 +275,41 @@
             renderCandidates();
             setStatus(`Removed ${checked.length}.`);
         }).catch(err => { setStatus('Remove failed: ' + err.message, true); updateButtons(); });
+    });
+
+    // ---- Add non-CFAL member ----------------------------------------------------
+
+    const personDialog = $('lp-person-dialog');
+    const personForm = $('lp-person-form');
+    const personError = $('lp-person-error');
+    const personAddBtn = $('lp-person-add');
+
+    function openPersonDialog(name) {
+        personForm.reset();
+        personForm.elements.name.value = name;
+        personError.textContent = '';
+        personDialog.showModal();
+        (name ? personForm.elements.email : personForm.elements.name).focus();
+    }
+
+    $('lp-person-cancel').addEventListener('click', () => { personDialog.close(); input.focus(); });
+    personDialog.addEventListener('close', () => input.focus());
+
+    personForm.addEventListener('submit', e => {
+        e.preventDefault(); // stay open until the server accepts the person
+        const fields = Object.fromEntries(new FormData(personForm).entries());
+        personAddBtn.disabled = true;
+        personError.textContent = 'Saving…';
+        personError.style.color = '';
+        post('lp_attendance_add_person', { fields }).then(person => {
+            candidates.push(person);
+            candidates.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+            personDialog.close();
+            add(person);
+        }).catch(err => {
+            personError.style.color = '#d63638';
+            personError.textContent = err.message;
+        }).finally(() => { personAddBtn.disabled = false; });
     });
 
     window.addEventListener('beforeunload', e => {

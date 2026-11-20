@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.54';
+$lp_db_version = '1.55';
 
 function lp_db_install()
 {
@@ -207,17 +207,43 @@ function lp_db_install()
 		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT marker_locality_fk FOREIGN KEY (locality_id) REFERENCES $locality_table_name(id)");
 	}
 
+	// People who attend meetings but have not signed the petition (non-CFAL members).
+	$person_table_name = $wpdb->prefix . 'lp_person';
+	$sql = "CREATE TABLE $person_table_name (
+		id mediumint(9) NOT NULL AUTO_INCREMENT,
+		created timestamp DEFAULT CURRENT_TIMESTAMP,
+		name varchar(50) NOT NULL,
+		address_id mediumint(9) NULL,
+		email varchar(50),
+		phone varchar(20),
+		info text,
+		PRIMARY KEY  (id),
+		KEY address_id (address_id)
+	) $charset_collate;";
+	dbDelta($sql);
+	if (!check_for_constraint('person_address_fk', 'FOREIGN KEY')) {
+		$wpdb->query("ALTER TABLE $person_table_name ADD CONSTRAINT person_address_fk FOREIGN KEY (address_id) REFERENCES $address_table_name(id)");
+	}
+
+	// Each attendance row is for either a signer or a person (the other column is NULL).
 	$table_name = $wpdb->prefix . 'lp_attendance';
 	$sql = "CREATE TABLE $table_name (
 		id mediumint(9) NOT NULL AUTO_INCREMENT,
 		created timestamp DEFAULT CURRENT_TIMESTAMP,
 		event_id bigint(20) unsigned NOT NULL,
-		signer_id mediumint(9) NOT NULL,
+		signer_id mediumint(9) NULL,
+		person_id mediumint(9) NULL,
 		recorded_by bigint(20) unsigned NULL,
 		PRIMARY KEY  (id),
-		UNIQUE KEY event_signer (event_id, signer_id)
+		UNIQUE KEY event_signer (event_id, signer_id),
+		UNIQUE KEY event_person (event_id, person_id)
 	) $charset_collate;";
 	dbDelta($sql);
+	// dbDelta does not reliably relax NOT NULL on an existing column.
+	$wpdb->query("ALTER TABLE $table_name MODIFY signer_id mediumint(9) NULL");
+	if (!check_for_constraint('attendance_person_fk', 'FOREIGN KEY')) {
+		$wpdb->query("ALTER TABLE $table_name ADD CONSTRAINT attendance_person_fk FOREIGN KEY (person_id) REFERENCES $person_table_name(id)");
+	}
 
 	error_log('Notice: updating lp_db_version to ' . $lp_db_version);
 	if (!isset($installed_ver))
