@@ -1,6 +1,6 @@
 <?php
 global $lp_db_version;
-$lp_db_version = '1.55';
+$lp_db_version = '1.56';
 
 function lp_db_install()
 {
@@ -29,6 +29,7 @@ function lp_db_install()
 		title_suggestion text,
 		post_sign_message text,
 		default_state char(2),
+		city_specific varchar(20) NULL,
 		status ENUM ('Active','Successful','Abandoned') NOT NULL,
 		PRIMARY KEY  (id)
 	) $charset_collate;";

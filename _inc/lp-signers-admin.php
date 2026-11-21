@@ -2,7 +2,7 @@
 
 require_once('lp-tables-admin.php');
 
-function lp_query_signers($limit = null, $offset = 0, $apply_filters = true, $count_only = false, $order_by = 'ID')
+function lp_query_signers($limit = null, $offset = 0, $apply_filters = true, $count_only = false, $order_by = 'ID', $include_campaign_status = false)
 {
     global $wpdb;
 
@@ -22,6 +22,9 @@ function lp_query_signers($limit = null, $offset = 0, $apply_filters = true, $co
                      signer.id 'ID', signer.status 'Status', signer.created 'Created', signer.name 'Name', signer.age 'Age', signer.photo_file 'Photo', signer.title 'Title', signer.email 'Email', signer.email_status 'Email Status', signer.phone 'Phone', signer.comments 'Comments', signer.share_granted 'Share Public', signer.is_helper 'Helper', signer.is_supporter 'Supporter',
                      address.line_1 'Line 1', address.line_2 'Line 2', address.city 'City', address.state 'State', address.zip 'Zip', address.neighborhood 'Neighborhood',
                      signer_proxy.name 'Collected By', users.display_name 'Entered By' ";
+        if ($include_campaign_status) {
+            $query .= ", campaign.status 'CampaignStatus' ";
+        }
     }
     $query .= "FROM `$table_name` signer
               JOIN `$campaign_table` campaign ON campaign.id = signer.campaign_id
@@ -67,102 +70,56 @@ function lp_review_signers()
         }
     }
 
-    $unfiltered = lp_query_signers(apply_filters: false);
-
-    $limit = array_key_exists('limit', $_GET) ? intval($_GET['limit']) : 25;
-    $offset = array_key_exists('offset', $_GET) ? intval($_GET['offset']) : 0;
-    $result = lp_query_signers($limit, $offset, apply_filters: true);
-
-    $unique_values = ['ID', 'Created', 'Name', 'Photo', 'Title', 'Email', 'Phone', 'Comments', 'Line 1', 'Line 2'];
-    $hidden_columns = ['slug'];
-    $header_output = false;
-    $count = 0;
-    $update_status = array_key_exists('Status', $_GET);
-
-    foreach ($result as $values) {
-        if (!$header_output) {
-            echo build_filters('signers', $unfiltered, $unique_values, $hidden_columns);
-            echo '<form method="post">';
-            echo '<table class="lp-table">';
-            echo '<tr class="lp-table-header-row">';
-            echo '<th><input type="checkbox" onclick="toggle_checkbox(this)"></th>';
-            foreach ($values as $key => $value) {
-                if (in_array($key, $hidden_columns)) continue;
-                echo '<th class="lp-table-header">' . esc_html($key) . '</th>';
-            }
-            echo '</tr>' . "\n";
-            $header_output = true;
-        }
-        echo '<tr class="lp-table-row' . ($count++ % 2 == 0 ? ' lp-even-row' : ' lp-odd-row') . '">';
-        echo '<td class="lp-table-data"><input type="checkbox" name="user-id[' . $values['ID'] . ']"></td>';
-        foreach ($values as $key => $value) {
-            if (in_array($key, $hidden_columns)) continue;
-            echo '<td class="lp-table-data">';
-            $value = display_value($key, $value);
-            if ($key == 'Photo') {
-                if ($value)
-                    $img_url = '/wp-content/uploads/local-petition/' . $values['slug'] . '/' . $values['ID'] . '/' . $value;
-                else
-                    $img_url = '/wp-content/plugins/local-petition/images/placeholder-image-person.png';
-                echo '<img src="' . $img_url . '" style="width: 100px;">';
-            } else {
-                echo esc_html($value);
-            }
-            echo '</td>';
-        }
-        echo '</tr>' . "\n";
-    }
-    $result = lp_query_signers(count_only: true);
-    $total = intval($result[0]->Count);
-    if (count($result) == 0) {
-        echo '<br><p>There are no users that match the current criteria.</p>';
+    if (!current_user_can('moderate_comments')) {
+        echo 'You do not have access to this page.';
         return;
     }
-    echo '</table>';
 
-    echo '<br/>';
-    echo '<div>';
-    if ($update_status) {
-        echo 'Change status of selected to: <select name="new_status">' .
-            '<option>-- No Change --</option>' .
-            '<option>Unreviewed</option>' .
-            '<option>Approved</option>' .
-            '<option>Quarantined</option>' .
-            '<option>Duplicate</option>' .
-            '</select>';
-    }
-    echo ' change email to: <select name="new_email_status">' .
-    '<option>-- No Change --</option>' .
-    '<option>Unknown</option>' .
-    '<option>Valid</option>' .
-    '<option>Full</option>' .
-    '<option>Invalid</option>' .
-    '<option>Unsubscribed</option>' .
-    '</select>';
-
-    echo ' ';
-    echo '<input type="submit"></div>';
-    echo '</form>';
-    echo '<div>' . $total . ' results</div>';
-    echo '<div>Page ';
-    for ($page = 0; $page * $limit < $total; $page++) {
-        $o = $page * $limit;
-        echo '&nbsp;&nbsp;';
-        if ($offset == $o) {
-            echo '<b>' . ($page + 1) . '</b>';
-        } else {
-            $query = http_build_query(array_merge($_GET, array('offset' => $o)));
-            echo '<a href="?' . $query . '">' . ($page + 1) . '</a>';
-        }
-    }
-    echo '</div>';
-
-    echo '<div>Results per page: <select onchange="update_filter(\'limit\', this.value)">';
-    foreach (array(25, 50, 100, 250, 500, 1000) as $l) {
-        echo '<option value="' . $l . '"' . ($limit == $l ? ' selected' : '') . '>' . $l . '</option>';
-    }
-    echo '</select></div>';
-    echo '<a href="/wp-admin/admin-ajax.php?action=lp_fetch_signers" download="signers-' . date('Y-m-d') . '.csv">Download</a>';
+    // The whole signer list is embedded as JSON; lp-review-signers.js does the
+    // filtering, paging, column choice, search and email lists in the browser.
+    global $wpdb;
+    $campaign_table = $wpdb->prefix . 'lp_campaign';
+    $city_specific = $wpdb->get_col("SELECT DISTINCT city_specific FROM `$campaign_table` WHERE status = 'Active' AND city_specific IS NOT NULL AND city_specific <> ''");
+    $data = [
+        'rows' => lp_query_signers(apply_filters: false, include_campaign_status: true),
+        'page' => 'lp-review-signers',
+        // Cities pre-checked in the Email dialog; empty means every city.
+        'defaultCities' => array_map('strtoupper', $city_specific ?: []),
+    ];
+    wp_enqueue_script('lp_review_signers', plugins_url('js/lp-review-signers.js', dirname(__FILE__)), array('jscookie'), LOCAL_PETITION_VERSION, true);
+    wp_add_inline_script('lp_review_signers', 'window.lpSigners = ' . wp_json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP) . ';', 'before');
+    ?>
+    <style>
+        #lp-signers-app .lp-filters td { padding: 0 8px 4px 0; vertical-align: bottom; }
+        #lp-signers-app .lp-pager a, #lp-signers-app .lp-pager b { margin-right: 10px; }
+        #lp-signers-app .lp-bottom-buttons { margin: 1em 0; }
+        .lp-dialog { max-width: 42em; width: 90vw; }
+        .lp-dialog h2 { margin-top: 0; }
+        .lp-columns-lists { display: flex; gap: 12px; align-items: center; }
+        .lp-columns-lists select { width: 14em; height: 18em; }
+        .lp-columns-lists .lp-columns-buttons { display: flex; flex-direction: column; gap: 8px; }
+        .lp-combo { position: relative; width: 25em; max-width: 100%; margin: 0.5em 0 1em; }
+        .lp-combo input { width: 100%; box-sizing: border-box; }
+        .lp-combo.open input { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+        .lp-combo ul { display: none; position: absolute; z-index: 10; top: 100%; left: 0; right: 0; margin: -1px 0 0; padding: 0; list-style: none;
+            background: #fff; border: 1px solid #8c8f94; border-top-color: #dcdcde; border-radius: 0 0 4px 4px; box-shadow: 0 3px 6px rgba(0,0,0,.12); }
+        .lp-combo.open ul { display: block; }
+        .lp-combo li { margin: 0; padding: 6px 10px; cursor: pointer; }
+        .lp-combo li.active, .lp-combo li[role=option]:hover { background: #2271b1; color: #fff; }
+        .lp-combo li.more { color: #646970; cursor: default; font-style: italic; }
+        .lp-details th { text-align: left; padding: 4px 16px 4px 0; vertical-align: top; white-space: nowrap; }
+        .lp-details td { padding: 4px 0; white-space: pre-wrap; }
+        .lp-email-options fieldset { margin: 0 0 12px; border: 1px solid #c3c4c7; padding: 6px 12px; }
+        .lp-email-options label { margin-right: 14px; }
+        .lp-city-picker { position: relative; display: inline-block; }
+        .lp-city-panel { display: none; position: absolute; z-index: 10; background: #fff; border: 1px solid #8c8f94; padding: 8px; max-height: 14em; overflow: auto; min-width: 14em; box-shadow: 0 3px 6px rgba(0,0,0,.12); }
+        .lp-city-picker.open .lp-city-panel { display: block; }
+        .lp-city-panel label { display: block; margin: 0 0 4px; }
+        .lp-email-result { max-height: 22em; overflow: auto; margin-top: 12px; }
+        .lp-email-result textarea { width: 100%; box-sizing: border-box; }
+    </style>
+    <div id="lp-signers-app"><noscript>JavaScript is required to review signers.</noscript></div>
+    <?php
 }
 
 function lp_fetch_signers_json_handler() {
