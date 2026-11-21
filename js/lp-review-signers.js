@@ -299,11 +299,12 @@
 
     function openSearchDialog() {
         if (!searchDialog) {
-            searchDialog = makeDialog('Search signers');
+            searchDialog = makeDialog('Search signers', 'lp-search-dialog');
+            searchDialog.appendChild(el('button', { type: 'button', class: 'lp-dialog-close', 'aria-label': 'Close', title: 'Close', onclick: () => searchDialog.close() }, '×'));
             searchInput = el('input', { type: 'text', autocomplete: 'off', role: 'combobox', placeholder: 'Start typing a name' });
             searchList = el('ul', { role: 'listbox' });
             searchCombo = el('div', { class: 'lp-combo' }, searchInput, searchList);
-            searchDetails = el('div');
+            searchDetails = el('div', { class: 'lp-search-details' });
             searchInput.addEventListener('input', () => { searchActive = -1; renderSearchList(); });
             searchInput.addEventListener('focus', renderSearchList);
             searchInput.addEventListener('blur', () => searchCombo.classList.remove('open'));
@@ -323,8 +324,7 @@
                     searchCombo.classList.remove('open');
                 }
             });
-            searchDialog.append(searchCombo, searchDetails,
-                el('p', null, el('button', { type: 'button', class: 'button', onclick: () => searchDialog.close() }, 'Close')));
+            searchDialog.append(searchCombo, searchDetails);
         }
         searchDialog.showModal();
         searchInput.focus();

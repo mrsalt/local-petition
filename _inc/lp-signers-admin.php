@@ -93,8 +93,15 @@ function lp_review_signers()
         #lp-signers-app .lp-filters td { padding: 0 8px 4px 0; vertical-align: bottom; }
         #lp-signers-app .lp-pager a, #lp-signers-app .lp-pager b { margin-right: 10px; }
         #lp-signers-app .lp-bottom-buttons { margin: 1em 0; }
-        .lp-dialog { max-width: 42em; width: 90vw; }
-        .lp-dialog h2 { margin-top: 0; }
+        .lp-dialog { max-width: 42em; width: 90vw; border: 1px solid #c3c4c7; border-radius: 4px; box-shadow: 0 5px 20px rgba(0,0,0,.2); }
+        .lp-dialog h2 { margin-top: 0; padding-right: 2em; }
+        .lp-dialog-close { position: absolute; top: 8px; right: 12px; background: none; border: 0; padding: 0 4px; font-size: 26px; line-height: 1; color: #646970; cursor: pointer; }
+        .lp-dialog-close:hover, .lp-dialog-close:focus { color: #1d2327; }
+        /* Tall enough for a full autocomplete list; only the details area scrolls. */
+        .lp-search-dialog { height: min(36em, 92vh); }
+        .lp-search-dialog[open] { display: flex; flex-direction: column; overflow: hidden; }
+        .lp-search-dialog .lp-combo { flex: none; }
+        .lp-search-details { flex: 1; min-height: 0; overflow: auto; border-top: 1px solid #c3c4c7; padding-top: 8px; }
         .lp-columns-lists { display: flex; gap: 12px; align-items: center; }
         .lp-columns-lists select { width: 14em; height: 18em; }
         .lp-columns-lists .lp-columns-buttons { display: flex; flex-direction: column; gap: 8px; }
