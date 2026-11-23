@@ -83,6 +83,8 @@ function lp_review_signers()
     $data = [
         'rows' => lp_query_signers(apply_filters: false, include_campaign_status: true),
         'page' => 'lp-review-signers',
+        'ajaxUrl' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('lp_review_signers'),
         // Cities pre-checked in the Email dialog; empty means every city.
         'defaultCities' => array_map('strtoupper', $city_specific ?: []),
     ];
@@ -102,6 +104,10 @@ function lp_review_signers()
         .lp-search-dialog[open] { display: flex; flex-direction: column; overflow: hidden; }
         .lp-search-dialog .lp-combo { flex: none; }
         .lp-search-details { flex: 1; min-height: 0; overflow: auto; border-top: 1px solid #c3c4c7; padding-top: 8px; }
+        .lp-search-footer { flex: none; border-top: 1px solid #c3c4c7; padding-top: 10px; margin-top: 8px; }
+        .lp-search-footer[hidden] { display: none; }
+        .lp-search-message { margin-left: 8px; }
+        .lp-details input.regular-text { width: 20em; max-width: 100%; }
         .lp-columns-lists { display: flex; gap: 12px; align-items: center; }
         .lp-columns-lists select { width: 14em; height: 18em; }
         .lp-columns-lists .lp-columns-buttons { display: flex; flex-direction: column; gap: 8px; }
@@ -143,3 +149,42 @@ function lp_fetch_signers_json_handler() {
     fclose($out);
     wp_die();
 }
+
+function lp_update_signer_contact_handler()
+{
+    global $wpdb;
+    check_ajax_referer('lp_review_signers', 'nonce');
+    if (!current_user_can('moderate_comments')) {
+        wp_send_json_error('Not authorized', 403);
+    }
+    $id = isset($_POST['id']) ? absint($_POST['id']) : 0;
+    $field = function ($key) {
+        return isset($_POST[$key]) ? trim(sanitize_text_field(wp_unslash($_POST[$key]))) : '';
+    };
+    $email = $field('email');
+    $phone = $field('phone');
+    $email_status = $field('email_status');
+    if (!$id) {
+        wp_send_json_error('Unknown signer', 400);
+    }
+    if (mb_strlen($email) > 50 || mb_strlen($phone) > 20) {
+        wp_send_json_error('Email can be at most 50 characters and phone at most 20.', 400);
+    }
+    if ($email !== '' && !is_email($email)) {
+        wp_send_json_error('Email address is not valid.', 400);
+    }
+    if (!in_array($email_status, ['Unknown', 'Valid', 'Full', 'Invalid', 'Unsubscribed'], true)) {
+        wp_send_json_error('Unknown email status', 400);
+    }
+    $table = $wpdb->prefix . 'lp_signer';
+    // Empty email/phone are stored as NULL.
+    $result = $wpdb->query($wpdb->prepare(
+        "UPDATE `$table` SET email = NULLIF(%s, ''), phone = NULLIF(%s, ''), email_status = %s WHERE id = %d",
+        $email, $phone, $email_status, $id
+    ));
+    if ($result === false) {
+        wp_send_json_error('Database error', 500);
+    }
+    wp_send_json_success(['email' => $email === '' ? null : $email, 'phone' => $phone === '' ? null : $phone, 'email_status' => $email_status]);
+}
+add_action('wp_ajax_lp_update_signer_contact', 'lp_update_signer_contact_handler');

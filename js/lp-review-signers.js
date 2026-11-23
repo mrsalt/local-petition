@@ -266,7 +266,23 @@
 
     function searchMatches() {
         const q = searchInput.value.trim().toLowerCase();
-        return q ? rows.filter(r => (r.Name || '').toLowerCase().includes(q)) : [];
+        if (!q) return [];
+        const digits = q.replace(/\D/g, '');
+        return rows.filter(r => (r.Name || '').toLowerCase().includes(q)
+            || (r.Email || '').toLowerCase().includes(q)
+            || (digits && (r.Phone || '').replace(/\D/g, '').includes(digits)));
+    }
+
+    // Name and city, plus the email/phone when that is what matched.
+    function searchLabel(r) {
+        const q = searchInput.value.trim().toLowerCase();
+        const digits = q.replace(/\D/g, '');
+        let text = r.City ? `${r.Name} (${r.City})` : r.Name;
+        if (!(r.Name || '').toLowerCase().includes(q)) {
+            if ((r.Email || '').toLowerCase().includes(q)) text += ' — ' + r.Email;
+            else if (digits && r.Phone) text += ' — ' + r.Phone;
+        }
+        return text;
     }
 
     function renderSearchList() {
@@ -274,8 +290,7 @@
         searchShown = found.slice(0, MAX_SHOWN);
         if (searchActive >= searchShown.length) searchActive = searchShown.length - 1;
         searchList.replaceChildren(...searchShown.map((r, i) => {
-            const li = el('li', { role: 'option', class: i === searchActive ? 'active' : '' },
-                r.City ? `${r.Name} (${r.City})` : r.Name);
+            const li = el('li', { role: 'option', class: i === searchActive ? 'active' : '' }, searchLabel(r));
             li.addEventListener('mousedown', e => { e.preventDefault(); pickPerson(r); });
             return li;
         }));
@@ -283,7 +298,39 @@
         searchCombo.classList.toggle('open', found.length > 0);
     }
 
+    const EDIT_FIELDS = new Set(['Email', 'Phone', 'Email Status']);
+    let searchFooter, searchSave, searchMessage, editInputs = {}, pickedRow = null;
+
+    const originalValues = row => ({ Email: row.Email || '', Phone: row.Phone || '', 'Email Status': row['Email Status'] || 'Unknown' });
+
+    function isDirty() {
+        if (!pickedRow) return false;
+        const orig = originalValues(pickedRow);
+        return [...EDIT_FIELDS].some(f => editInputs[f].value.trim() !== orig[f]);
+    }
+
+    function updateSaveState() {
+        searchSave.disabled = !isDirty();
+    }
+
+    function editControl(c, row) {
+        const orig = originalValues(row)[c];
+        let ctl;
+        if (c === 'Email Status') {
+            ctl = el('select', null, EMAIL_STATUSES.map(v => el('option', { value: v }, v)));
+            ctl.value = orig;
+        } else {
+            ctl = el('input', { type: c === 'Email' ? 'email' : 'tel', maxlength: c === 'Email' ? 50 : 20, value: orig, class: 'regular-text' });
+        }
+        ctl.addEventListener('input', updateSaveState);
+        ctl.addEventListener('change', updateSaveState);
+        editInputs[c] = ctl;
+        return ctl;
+    }
+
     function pickPerson(row) {
+        pickedRow = row;
+        editInputs = {};
         searchInput.value = '';
         searchActive = -1;
         renderSearchList();
@@ -291,17 +338,52 @@
         [...columns, 'CampaignStatus'].forEach(c => {
             const label = c === 'CampaignStatus' ? 'Campaign Status' : c;
             table.appendChild(el('tr', null, el('th', null, label + ':'),
-                el('td', null, c === 'Photo' ? el('img', { src: photoUrl(row), style: 'width: 100px;' }) : display(c, row[c]))));
+                el('td', null, c === 'Photo' ? el('img', { src: photoUrl(row), style: 'width: 100px;' })
+                    : EDIT_FIELDS.has(c) ? editControl(c, row) : display(c, row[c]))));
         });
         searchDetails.replaceChildren(table);
+        searchMessage.textContent = '';
+        searchFooter.hidden = false;
+        updateSaveState();
         searchInput.focus();
+    }
+
+    function saveContact() {
+        const row = pickedRow;
+        const body = new URLSearchParams({
+            action: 'lp_update_signer_contact', nonce: cfg.nonce, id: row.ID,
+            email: editInputs.Email.value.trim(), phone: editInputs.Phone.value.trim(), email_status: editInputs['Email Status'].value,
+        });
+        searchSave.disabled = true;
+        searchMessage.style.color = '';
+        searchMessage.textContent = 'Saving…';
+        fetch(cfg.ajaxUrl, { method: 'POST', credentials: 'same-origin', body })
+            .then(r => r.json().catch(() => ({ success: false, data: 'Unexpected response (HTTP ' + r.status + ')' })))
+            .then(res => {
+                if (!res.success) throw new Error(res.data || 'Save failed');
+                row.Email = res.data.email;
+                row.Phone = res.data.phone;
+                row['Email Status'] = res.data.email_status;
+                if (pickedRow === row) {
+                    editInputs.Email.value = row.Email || '';
+                    editInputs.Phone.value = row.Phone || '';
+                    editInputs['Email Status'].value = row['Email Status'];
+                    searchMessage.textContent = 'Saved.';
+                }
+                render(); // refresh the table behind the dialog
+            })
+            .catch(err => {
+                searchMessage.style.color = '#d63638';
+                searchMessage.textContent = err.message;
+            })
+            .finally(updateSaveState);
     }
 
     function openSearchDialog() {
         if (!searchDialog) {
             searchDialog = makeDialog('Search signers', 'lp-search-dialog');
             searchDialog.appendChild(el('button', { type: 'button', class: 'lp-dialog-close', 'aria-label': 'Close', title: 'Close', onclick: () => searchDialog.close() }, '×'));
-            searchInput = el('input', { type: 'text', autocomplete: 'off', role: 'combobox', placeholder: 'Start typing a name' });
+            searchInput = el('input', { type: 'text', autocomplete: 'off', role: 'combobox', placeholder: 'Start typing a name, email or phone' });
             searchList = el('ul', { role: 'listbox' });
             searchCombo = el('div', { class: 'lp-combo' }, searchInput, searchList);
             searchDetails = el('div', { class: 'lp-search-details' });
@@ -324,7 +406,10 @@
                     searchCombo.classList.remove('open');
                 }
             });
-            searchDialog.append(searchCombo, searchDetails);
+            searchSave = el('button', { type: 'button', class: 'button button-primary', disabled: true, onclick: saveContact }, 'Save');
+            searchMessage = el('span', { class: 'lp-search-message' });
+            searchFooter = el('div', { class: 'lp-search-footer', hidden: true }, searchSave, ' ', searchMessage);
+            searchDialog.append(searchCombo, searchDetails, searchFooter);
         }
         searchDialog.showModal();
         searchInput.focus();
